@@ -102,6 +102,15 @@ export const ViewItemData = (() => {
 })();
 
 export type ViewLayerType = typeof ViewLayers;
+
+export const SolverErrorMessages = {
+  "Infeasible_Problem_Detected": "Problem is infeasible. The robot may not be able to obey all constraints."
+}
+
+export const parseSolverError = (err:string) => {
+  return err.slice(0, err.length-2).substring(err.lastIndexOf('\''))
+}
+
 export const UIStateStore = types
   .model("UIStateStore", {
     fieldScalingFactor: 0.02,
@@ -113,6 +122,7 @@ export const UIStateStore = types
     layers: types.array(types.boolean),
     selectedSidebarItem: types.maybe(types.safeReference(SelectableItem)),
     selectedNavbarItem: NavbarLabels.FullWaypoint,
+    snackbarError: ""
   })
   .views((self: any) => {
     return {
@@ -134,6 +144,12 @@ export const UIStateStore = types
   })
   .actions((self: any) => {
     return {
+      setSnackbarError(error:string) {
+        self.snackbarError = error
+      },
+      setSnackbarOpen(open:boolean) {
+        self.snackbarOpen = open;
+      },
       setMainMenuOpen(open: boolean) {
         self.mainMenuOpen = open;
       },

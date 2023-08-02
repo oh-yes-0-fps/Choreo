@@ -11,6 +11,7 @@ import { RobotConfigStore } from "./RobotConfigStore";
 import { SelectableItemTypes, UIStateStore } from "./UIStateStore";
 import { PathListStore } from "./PathListStore";
 import { TrajectorySampleStore } from "./TrajectorySampleStore";
+import { parseSolverError } from "./UIStateStore";
 
 const DocumentModelStore = types
   .model("DocumentModelStore", {
@@ -65,6 +66,10 @@ const DocumentModelStore = types
             newTraj.push(newPoint);
           });
           pathStore.setTrajectory(newTraj);
+        })
+        .catch((err)=>{
+          self.uiState.setSnackbarError(parseSolverError(JSON.stringify(err)));
+          self.uiState.setSnackbarOpen(true)
         })
         .finally(() => {
           pathStore.setGenerating(false);

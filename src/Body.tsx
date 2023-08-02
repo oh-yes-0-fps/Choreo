@@ -6,6 +6,8 @@ import Field from "./components/field/Field";
 import Sidebar from "./components/sidebar/Sidebar";
 import PathAnimationSlider from "./components/field/PathAnimationSlider";
 import AppMenu from "./AppMenu";
+import { Snackbar } from "@mui/base";
+import { Alert } from "@mui/material";
 
 type Props = {};
 
@@ -18,6 +20,7 @@ class Body extends Component<Props, State> {
   state = {};
 
   render() {
+    let {setSnackbarError, setSnackbarOpen, snackbarError, snackbarOpen} = this.context.model.uiState;
     return (
       <>
         <div className="App">
@@ -44,6 +47,13 @@ class Body extends Component<Props, State> {
               </span>
             </span>
             <PathAnimationSlider></PathAnimationSlider>
+            <Snackbar 
+            open={snackbarOpen}
+            onClose={()=>setSnackbarOpen(false)}>
+              <Alert elevation={6} variant="filled" severity="error" onClose={()=>setSnackbarOpen(false)}>
+              {snackbarError}
+              </Alert>
+            </Snackbar>
           </div>
         </div>
       </>

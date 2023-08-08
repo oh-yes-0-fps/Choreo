@@ -68,6 +68,7 @@ const DocumentModelStore = types
           pathStore.setTrajectory(newTraj);
         })
         .catch((err)=>{
+          console.error(err)
           self.uiState.setSnackbarError(parseSolverError(JSON.stringify(err)));
           self.uiState.setSnackbarOpen(true)
         })

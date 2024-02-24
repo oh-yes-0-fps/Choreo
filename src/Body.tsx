@@ -19,7 +19,8 @@ class Body extends Component<Props, State> {
   state = {};
 
   render() {
-    let {setSnackbarError, setSnackbarOpen, snackbarError, snackbarOpen} = this.context.model.uiState;
+    const { _setSnackbarError, setSnackbarOpen, snackbarError, snackbarOpen } =
+      this.context.model.uiState;
     return (
       <>
         <div className="App">
@@ -48,11 +49,17 @@ class Body extends Component<Props, State> {
               </span>
             </span>
             <PathAnimationPanel></PathAnimationPanel>
-            <Snackbar 
-            open={snackbarOpen}
-            onClose={()=>setSnackbarOpen(false)}>
-              <Alert elevation={6} variant="filled" severity="error" onClose={()=>setSnackbarOpen(false)}>
-              {snackbarError}
+            <Snackbar
+              open={snackbarOpen}
+              onClose={() => setSnackbarOpen(false)}
+            >
+              <Alert
+                elevation={6}
+                variant="filled"
+                severity="error"
+                onClose={() => setSnackbarOpen(false)}
+              >
+                {snackbarError}
               </Alert>
             </Snackbar>
           </div>

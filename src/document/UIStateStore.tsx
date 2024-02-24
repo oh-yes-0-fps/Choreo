@@ -227,15 +227,16 @@ export const ViewItemData = (() => {
 export const ViewLayerDefaults = ViewItemData.map((layer) => layer.default);
 export type ViewLayerType = typeof ViewLayers;
 
-export const SolverErrorMessages : {[key:string]:string} = {
-  "Infeasible_Problem_Detected": "Problem is infeasible. The robot may not be able to obey all constraints."
-}
+export const SolverErrorMessages: { [key: string]: string } = {
+  Infeasible_Problem_Detected:
+    "Problem is infeasible. The robot may not be able to obey all constraints."
+};
 
-export const parseSolverError = (err:string) => {
-  let slicedErr = err.slice(0, err.length-2);
-  let errorCode = slicedErr.substring(slicedErr.lastIndexOf("'")+1)
-  return SolverErrorMessages[errorCode] ?? err
-}
+export const parseSolverError = (err: string) => {
+  const slicedErr = err.slice(0, err.length - 2);
+  const errorCode = slicedErr.substring(slicedErr.lastIndexOf("'") + 1);
+  return SolverErrorMessages[errorCode] ?? err;
+};
 
 export const NUM_SETTINGS_TABS = 3;
 export const UIStateStore = types
@@ -338,10 +339,10 @@ export const UIStateStore = types
     };
   })
   .actions((self: any) => ({
-    setSnackbarError(error:string) {
-      self.snackbarError = error
+    setSnackbarError(error: string) {
+      self.snackbarError = error;
     },
-    setSnackbarOpen(open:boolean) {
+    setSnackbarOpen(open: boolean) {
       self.snackbarOpen = open;
     },
     setMainMenuOpen(open: boolean) {

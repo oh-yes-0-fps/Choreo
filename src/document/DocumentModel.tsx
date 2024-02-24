@@ -148,9 +148,11 @@ const StateStore = types
             }
           )
           .catch((err) => {
-            console.error(err)
-            self.uiState.setSnackbarError(parseSolverError(JSON.stringify(err)));
-            self.uiState.setSnackbarOpen(true)
+            console.error(err);
+            self.uiState.setSnackbarError(
+              parseSolverError(JSON.stringify(err))
+            );
+            self.uiState.setSnackbarOpen(true);
           })
           .finally(() => {
             pathStore.setGenerating(false);

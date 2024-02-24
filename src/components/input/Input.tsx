@@ -1,83 +1,178 @@
+import { Tooltip } from "@mui/material";
 import { observer } from "mobx-react";
 import React, { Component } from "react";
 import styles from "./InputList.module.css";
 
 type Props = {
+  /** The text to show before the number */
   title: string;
+  /** The text to show before the number */
   suffix: string;
+  /** Whether the input should be editable, or else italic and grayed out */
   enabled: boolean;
+  /** The value of the input */
   number: number;
+  /** The number of decimal places to show when not editing. */
   roundingPrecision?: number;
-  setNumber: (arg0: number) => void;
-  setEnabled: (arg0: boolean) => void;
+  setNumber: (newNumber: number) => void;
+  setEnabled: (value: boolean) => void;
+  /** Show a checkbox after the suffix that controls the enabled state of the input */
   showCheckbox?: boolean;
+  /** Whether or not to show the number when the input is disabled */
+  showNumberWhenDisabled?: boolean;
+  /** The tooltip for the title */
+  titleTooltip?: string;
+  /** Maximum width of the number input, in monospace characters */
+  maxWidthCharacters?: number;
 };
 
-type State = {};
+type State = {
+  focused: boolean;
+  editing: boolean;
+  editedValue: string;
+};
+
 class Input extends Component<Props, State> {
-  numberRef: React.RefObject<HTMLInputElement>;
+  inputElemRef: React.RefObject<HTMLInputElement>;
   constructor(props: Props) {
     super(props);
-    this.setEnabled = this.setEnabled.bind(this);
-    this.setNumber = this.setNumber.bind(this);
-    this.numberRef = React.createRef<HTMLInputElement>();
+    this.state = {
+      focused: false,
+      editing: false,
+      editedValue: ""
+    };
+    this.inputElemRef = React.createRef<HTMLInputElement>();
   }
-  setEnabled(event: React.ChangeEvent<HTMLInputElement>) {
+  setEnabled = (event: React.ChangeEvent<HTMLInputElement>) => {
     this.props.setEnabled(event.target.checked);
+  };
+
+  unfocusedMode() {
+    this.setState({
+      focused: false,
+      editing: false,
+      editedValue: this.props.number.toString()
+    });
   }
-  setNumber(event: React.ChangeEvent<HTMLInputElement>) {
-    let value = event.target.value;
-    if (value === "+" || value === "-" || value === ".") return;
-    let displayedDecimals = value.split(".")[1]?.length ?? 0;
-    if (displayedDecimals > (this.props.roundingPrecision ?? 3)) {
-      value = event.target.value;
-    }
-    let input = Number.parseFloat(value);
-    if (!Number.isNaN(input)) {
-      this.props.setNumber(input);
+
+  focusedMode() {
+    this.setState({
+      focused: true,
+      editing: false,
+      editedValue: this.props.number.toString()
+    });
+    this.inputElemRef.current!.value = this.props.number.toString();
+    this.inputElemRef.current!.select();
+  }
+
+  editingMode() {
+    this.setState({
+      focused: true,
+      editing: true
+    });
+  }
+
+  getDisplayStr(): string {
+    if (this.state.editing) {
+      return this.state.editedValue;
+    } else {
+      if (this.state.focused) {
+        return this.props.number.toString();
+      } else {
+        return this.getRoundedStr();
+      }
     }
   }
-  correctNumber() {
+
+  getRoundedStr(): string {
     const precision = this.props.roundingPrecision ?? 3;
-    if (this.numberRef.current) {
-      // splits the number at the first decimal point, and removes anything beyond 3 digits after the decimal point
-      // to change this, modify the el.substring(0, x) x being the desired number of digits after the decimal point
-      this.numberRef.current.value = this.props.number
-        .toString()
-        .split(".")
-        .map((el, i) => (i == 0 ? el : el.substring(0, precision)))
-        .join(".");
-    }
+    return (
+      Math.round(this.props.number * 10 ** precision) /
+      10 ** precision
+    ).toFixed(precision);
   }
-  componentDidMount(): void {
-    this.correctNumber();
+
+  componentDidUpdate(
+    prevProps: Readonly<Props>,
+    prevState: Readonly<State>,
+    snapshot?: any
+  ): void {
+    if (prevProps.number !== this.props.number) {
+      // if the value has changed from the outside, make sure it is no longer
+      // focused so concise precision is shown.
+      this.unfocusedMode();
+    }
   }
 
   render() {
-    // If the element is not focused, it means the number changed from outside. Update the truncated display.
-    if (document.activeElement !== this.numberRef.current) {
-      this.correctNumber();
+    const showNumberWhenDisabled = this.props.showNumberWhenDisabled ?? true;
+    let characters = this.getRoundedStr().length + 3;
+    if (this.props.maxWidthCharacters !== undefined) {
+      characters = Math.min(characters, this.props.maxWidthCharacters);
     }
     return (
       <>
-        <span
-          className={
-            styles.Title + " " + (this.props.enabled ? "" : styles.Disabled)
-          }
-        >
-          {this.props.title}
-        </span>
+        <Tooltip disableInteractive title={this.props.titleTooltip ?? ""}>
+          <span
+            className={
+              styles.Title + " " + (this.props.enabled ? "" : styles.Disabled)
+            }
+            style={
+              (this.props.titleTooltip ?? "") == ""
+                ? {}
+                : {
+                    textDecorationLine: "underline",
+                    textDecorationStyle: "dotted",
+                    textUnderlineOffset: "2px"
+                  }
+            }
+          >
+            {this.props.title}
+          </span>
+        </Tooltip>
         <input
-          ref={this.numberRef}
+          ref={this.inputElemRef}
           type="text"
-          className={styles.Number}
+          className={
+            styles.Number +
+            (showNumberWhenDisabled ? " " + styles.ShowWhenDisabled : "")
+          }
+          style={{ minWidth: `${characters}ch` }}
           disabled={!this.props.enabled}
-          onChange={this.setNumber}
-          onBlur={(e) => this.correctNumber()}
           onFocus={(e) => {
-            if (this.numberRef.current) {
-              this.numberRef.current!.value = this.props.number.toString();
-              setTimeout(() => this.numberRef.current!.select(), 0.001);
+            this.focusedMode();
+          }}
+          onBlur={(e) => {
+            const newNumber = parseFloat(this.state.editedValue);
+            if (!Number.isNaN(newNumber)) {
+              this.props.setNumber(newNumber);
+            }
+            this.unfocusedMode();
+          }}
+          onChange={(e) => {
+            if (!this.state.editing) {
+              this.editingMode();
+            }
+            this.setState({
+              editedValue: e.target.value
+            });
+            e.preventDefault();
+          }}
+          onKeyDown={(e) => {
+            if (e.key == "Enter") {
+              this.inputElemRef.current?.blur();
+              // let newNumber = parseFloat(this.state.editedValue);
+              // if (!Number.isNaN(newNumber)) {
+              //   this.props.setNumber(newNumber);
+              // }
+              // this.unfocusedMode();
+            }
+          }}
+          value={this.getDisplayStr()}
+          onMouseDown={(e) => {
+            if (!this.state.focused) {
+              this.focusedMode();
+              e.preventDefault();
             }
           }}
           autoComplete="off"

@@ -7,11 +7,12 @@ import SidebarWaypoint from "./SidebarWaypoint";
 import styles from "./Sidebar.module.css";
 
 const getListStyle = (isDraggingOver: boolean) => ({
-  outline: isDraggingOver ? `2px solid var(--darker-purple)` : "transparent",
+  outline: isDraggingOver ? "2px solid var(--darker-purple)" : "transparent"
 });
 
-type Props = {};
-type State = {};
+type Props = object;
+
+type State = object;
 
 class WaypointList extends Component<Props, State> {
   static contextType = DocumentManagerContext;
@@ -24,7 +25,10 @@ class WaypointList extends Component<Props, State> {
   }
 
   reorder(startIndex: number, endIndex: number) {
-    this.context.model.pathlist.activePath.reorder(startIndex, endIndex);
+    this.context.model.document.pathlist.activePath.reorder(
+      startIndex,
+      endIndex
+    );
   }
 
   onDragEnd(result: any) {
@@ -36,14 +40,14 @@ class WaypointList extends Component<Props, State> {
   }
 
   newWaypoint(): void {
-    this.context.model.pathlist.activePath.addWaypoint();
+    this.context.model.document.pathlist.activePath.addWaypoint();
   }
   // Normally you would want to split things out into separate components.
   // But in this example everything is just done in one place for simplicity
   render() {
-    let waypoints = this.context.model.pathlist.activePath.waypoints;
-    let waypointsLength =
-      this.context.model.pathlist.activePath.waypoints.length;
+    const waypoints = this.context.model.document.pathlist.activePath.waypoints;
+    const waypointsLength =
+      this.context.model.document.pathlist.activePath.waypoints.length;
     if (waypointsLength == 0) {
       return (
         <div className={styles.SidebarItem + " " + styles.Noninteractible}>
@@ -54,16 +58,34 @@ class WaypointList extends Component<Props, State> {
         </div>
       );
     }
-    let waypointElements = waypoints.map(
-      (holonomicWaypoint: IHolonomicWaypointStore, index: number) => (
-        <SidebarWaypoint
-          waypoint={holonomicWaypoint}
-          index={index}
-          pathLength={waypoints.length}
-          context={this.context}
-          key={holonomicWaypoint.uuid}
-        ></SidebarWaypoint>
-      )
+    const waypointElements = waypoints.map(
+      (holonomicWaypoint: IHolonomicWaypointStore, index: number) => {
+        let issue = "";
+        if (holonomicWaypoint.isInitialGuess) {
+          if (index == 0) {
+            issue = "Cannot start with an initial guess point.";
+          } else if (index == waypoints.length - 1) {
+            issue = "Cannot end with an initial guess point.";
+          }
+        }
+        if (holonomicWaypoint.type == 2) {
+          if (index == 0) {
+            issue = "Cannot start with an empty waypoint.";
+          } else if (index == waypoints.length - 1) {
+            issue = "Cannot end with an empty waypoint.";
+          }
+        }
+        return (
+          <SidebarWaypoint
+            waypoint={holonomicWaypoint}
+            index={index}
+            issue={issue}
+            pathLength={waypoints.length}
+            context={this.context}
+            key={holonomicWaypoint.uuid}
+          ></SidebarWaypoint>
+        );
+      }
     );
 
     return (

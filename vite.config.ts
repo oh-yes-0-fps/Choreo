@@ -11,7 +11,7 @@ export default defineConfig(async () => ({
   // tauri expects a fixed port, fail if that port is not available
   server: {
     port: 1420,
-    strictPort: true,
+    strictPort: true
   },
   // to make use of `TAURI_DEBUG` and other env variables
   // https://tauri.studio/v1/api/config#buildconfig.beforedevcommand
@@ -23,5 +23,15 @@ export default defineConfig(async () => ({
     minify: !process.env.TAURI_DEBUG ? "esbuild" : false,
     // produce sourcemaps for debug builds
     sourcemap: !!process.env.TAURI_DEBUG,
-  },
+    rollupOptions: {
+      onwarn(warning, defaultHandler) {
+        if (
+          warning.code === "MODULE_LEVEL_DIRECTIVE" &&
+          warning.message.includes("use client")
+        ) {
+          return;
+        }
+      }
+    }
+  }
 }));

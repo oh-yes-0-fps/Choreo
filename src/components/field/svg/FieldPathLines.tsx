@@ -3,9 +3,9 @@ import DocumentManagerContext from "../../../document/DocumentManager";
 
 import { observer } from "mobx-react";
 
-type Props = {};
+type Props = object;
 
-type State = {};
+type State = object;
 
 class FieldPathLines extends Component<Props, State> {
   static contextType = DocumentManagerContext;
@@ -14,9 +14,11 @@ class FieldPathLines extends Component<Props, State> {
 
   render() {
     let pathString = "";
-    this.context.model.pathlist.activePath.waypoints.forEach((point, index) => {
-      pathString += `${point.x}, ${point.y} `;
-    });
+    this.context.model.document.pathlist.activePath.waypoints.forEach(
+      (point, index) => {
+        pathString += `${point.x}, ${point.y} `;
+      }
+    );
     return (
       <>
         <polyline

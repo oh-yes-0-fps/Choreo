@@ -4,18 +4,17 @@ import { observer } from "mobx-react";
 import Navbar from "./components/navbar/Navbar";
 import Field from "./components/field/Field";
 import Sidebar from "./components/sidebar/Sidebar";
-import PathAnimationSlider from "./components/field/PathAnimationSlider";
 import AppMenu from "./AppMenu";
+import PathAnimationPanel from "./components/field/PathAnimationPanel";
 import { Snackbar } from "@mui/base";
 import { Alert } from "@mui/material";
 
-type Props = {};
+type Props = object;
 
-type State = {};
+type State = object;
 
 class Body extends Component<Props, State> {
   static contextType = DocumentManagerContext;
-  // @ts-ignore
   context!: React.ContextType<typeof DocumentManagerContext>;
   state = {};
 
@@ -32,6 +31,7 @@ class Body extends Component<Props, State> {
                 flexDirection: "row",
                 flexGrow: 1,
                 height: 0,
+                width: "100%"
               }}
             >
               <Sidebar></Sidebar>
@@ -40,13 +40,14 @@ class Body extends Component<Props, State> {
                   display: "flex",
                   flexDirection: "column",
                   flexGrow: 1,
+                  width: 0
                 }}
               >
                 <Navbar></Navbar>
                 <Field></Field>
               </span>
             </span>
-            <PathAnimationSlider></PathAnimationSlider>
+            <PathAnimationPanel></PathAnimationPanel>
             <Snackbar 
             open={snackbarOpen}
             onClose={()=>setSnackbarOpen(false)}>

@@ -1,30 +1,51 @@
-import { IconButton, TextField } from "@mui/material";
+import {
+  Checkbox,
+  CircularProgress,
+  FormControlLabel,
+  IconButton,
+  TextField
+} from "@mui/material";
 import { observer } from "mobx-react";
 import React, { Component } from "react";
 import DocumentManagerContext from "../../document/DocumentManager";
 import DeleteIcon from "@mui/icons-material/Delete";
-import AddIcon from "@mui/icons-material/Add";
 import styles from "./Sidebar.module.css";
 import { Tooltip } from "@mui/material";
-import { Route } from "@mui/icons-material";
+import { KeyboardArrowDown, Route, Settings } from "@mui/icons-material";
+import Input from "../input/Input";
+import InputList from "../input/InputList";
+import { dialog } from "@tauri-apps/api";
+import { toast } from "react-toastify";
 
-type Props = {};
+type Props = object;
 
-type State = {};
+type State = object;
 
 type OptionProps = { uuid: string };
-type OptionState = { renaming: boolean; renameError: boolean; name: string };
+type OptionState = {
+  renaming: boolean;
+  renameError: boolean;
+  name: string;
+  settingsOpen: boolean;
+};
 
 class PathSelectorOption extends Component<OptionProps, OptionState> {
   static contextType = DocumentManagerContext;
   declare context: React.ContextType<typeof DocumentManagerContext>;
-  state = { renaming: false, renameError: false, name: this.getPath().name };
+  state = {
+    renaming: false,
+    renameError: false,
+    name: this.getPath().name,
+    settingsOpen: false
+  };
   nameInputRef = React.createRef<HTMLInputElement>();
   getSelected() {
-    return this.props.uuid == this.context.model.pathlist.activePathUUID;
+    return (
+      this.props.uuid == this.context.model.document.pathlist.activePathUUID
+    );
   }
   getPath() {
-    return this.context.model.pathlist.paths.get(this.props.uuid)!;
+    return this.context.model.document.pathlist.paths.get(this.props.uuid)!;
   }
   startRename() {
     this.setState({ renaming: true });
@@ -32,7 +53,10 @@ class PathSelectorOption extends Component<OptionProps, OptionState> {
   }
   completeRename() {
     if (!this.checkName()) {
-      this.getPath().setName(this.nameInputRef.current!.value);
+      this.context.renamePath(
+        this.props.uuid,
+        this.nameInputRef.current!.value
+      );
     }
     this.escapeRename();
   }
@@ -40,21 +64,27 @@ class PathSelectorOption extends Component<OptionProps, OptionState> {
     this.setState({
       renaming: false,
       renameError: false,
-      name: this.getPath().name,
+      name: this.getPath().name
     });
   }
   checkName(): boolean {
-    let inputName = this.nameInputRef.current!.value;
-    let error = this.searchForName(this.nameInputRef.current!.value);
-    error = error || inputName.length == 0;
+    const inputName = this.nameInputRef.current!.value;
+    const error =
+      inputName.length == 0 ||
+      inputName.includes("/") ||
+      inputName.includes("\\") ||
+      inputName.includes(".") ||
+      this.searchForName(this.nameInputRef.current!.value);
     this.setState({ renameError: error, name: inputName });
     return error;
   }
   searchForName(name: string): boolean {
-    let didFind =
-      Array.from(this.context.model.pathlist.paths.keys())
+    const didFind =
+      Array.from(this.context.model.document.pathlist.paths.keys())
         .filter((uuid) => uuid !== this.props.uuid)
-        .map((uuid) => this.context.model.pathlist.paths.get(uuid)!.name)
+        .map(
+          (uuid) => this.context.model.document.pathlist.paths.get(uuid)!.name
+        )
         .find((existingName) => existingName === name) !== undefined;
     return didFind;
   }
@@ -62,20 +92,43 @@ class PathSelectorOption extends Component<OptionProps, OptionState> {
     // this is here to use the data we care about during actual rendering
     // so mobx knows to rerender this component when it changes
     this.searchForName("");
-    let selected =
-      this.props.uuid == this.context.model.pathlist.activePathUUID;
+    const selected =
+      this.props.uuid == this.context.model.document.pathlist.activePathUUID;
+    const name = this.getPath().name;
+    this.context.model.zoomToFitWaypoints();
+    if (name != this.state.name && !this.state.renaming) {
+      this.state.name = name;
+    }
     return (
       <span
         className={styles.SidebarItem + " " + (selected ? styles.Selected : "")}
-        style={{ borderWidth: 0, borderLeftWidth: 4 }}
-        onClick={() =>
-          this.context.model.pathlist.setActivePathUUID(this.props.uuid)
-        }
+        style={{ borderWidth: 0, borderLeftWidth: 4, height: "auto" }}
+        onClick={() => {
+          toast.dismiss(); // remove toasts that showed from last path, which is irrelevant for the new path
+
+          this.context.model.document.pathlist.setActivePathUUID(
+            this.props.uuid
+          );
+        }}
       >
-        <Route
-          className={styles.SidebarIcon}
-          htmlColor={selected ? "var(--select-yellow)" : "var(--accent-purple)"}
-        />
+        {this.getPath().generating ? (
+          <CircularProgress
+            size={20}
+            sx={{
+              color: selected ? "var(--select-yellow)" : "var(--accent-purple)",
+              marginInline: "2px"
+            }}
+            variant="indeterminate"
+          ></CircularProgress>
+        ) : (
+          <Route
+            className={styles.SidebarIcon}
+            htmlColor={
+              selected ? "var(--select-yellow)" : "var(--accent-purple)"
+            }
+          />
+        )}
+
         <TextField
           className={styles.SidebarLabel}
           variant={this.state.renaming ? "outlined" : "standard"}
@@ -87,7 +140,7 @@ class PathSelectorOption extends Component<OptionProps, OptionState> {
             flexGrow: "1",
             verticalAlign: "middle",
             userSelect: "none",
-            height: "24px",
+            height: "24px"
           }}
           spellCheck={false}
           onChange={() => this.checkName()}
@@ -103,7 +156,7 @@ class PathSelectorOption extends Component<OptionProps, OptionState> {
           }}
           inputProps={{
             readOnly: !this.state.renaming,
-            style: { userSelect: "none" },
+            style: { userSelect: "none" }
           }}
           InputProps={{ disableUnderline: false }}
           onFocus={(e) => {
@@ -115,7 +168,7 @@ class PathSelectorOption extends Component<OptionProps, OptionState> {
             this.startRename();
             this.nameInputRef.current!.focus();
           }}
-          onBlur={() => this.escapeRename()}
+          onBlur={() => this.completeRename()}
           onDoubleClickCapture={(e) => {
             e.stopPropagation();
             this.startRename();
@@ -131,28 +184,110 @@ class PathSelectorOption extends Component<OptionProps, OptionState> {
             marginLeft: "-4px",
             ".MuiInputBase-root": {
               "&:before": {
-                borderBottom: "2px solid transparent",
+                borderBottom: "2px solid transparent"
               },
               width: "100%",
               height: "1.5em",
               userSelect: "none",
-              padding: "4px",
-            },
+              padding: "4px"
+            }
           }}
         ></TextField>
-        <Tooltip title="Delete Path">
-          <IconButton
-            className={styles.SidebarRightIcon}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (window.confirm(`Delete "${this.getPath().name}"?`)) {
-                this.context.model.pathlist.deletePath(this.props.uuid);
-              }
-            }}
-          >
-            <DeleteIcon></DeleteIcon>
-          </IconButton>
-        </Tooltip>
+        <div>
+          <Tooltip disableInteractive title="Path Config">
+            <IconButton
+              className={styles.SidebarRightIcon}
+              onClick={(e) => {
+                e.stopPropagation();
+                this.setState({ settingsOpen: !this.state.settingsOpen });
+              }}
+            >
+              {this.state.settingsOpen ? (
+                <KeyboardArrowDown></KeyboardArrowDown>
+              ) : (
+                <Settings></Settings>
+              )}
+            </IconButton>
+          </Tooltip>
+          <Tooltip disableInteractive title="Delete Path">
+            <IconButton
+              className={styles.SidebarRightIcon}
+              onClick={(e) => {
+                e.stopPropagation();
+                dialog
+                  .confirm(`Delete "${this.getPath().name}"?`)
+                  .then((result) => {
+                    if (result) {
+                      this.context.deletePath(this.props.uuid);
+                    }
+                  });
+              }}
+            >
+              <DeleteIcon></DeleteIcon>
+            </IconButton>
+          </Tooltip>
+        </div>
+        {/* Settings part */}
+        {this.state.settingsOpen && (
+          <>
+            <span className={styles.SidebarVerticalLine}></span>
+            <Tooltip
+              disableInteractive
+              title="Estimate needed resolution (# of samples) based on distance between waypoints"
+            >
+              <FormControlLabel
+                sx={{
+                  marginLeft: "0px",
+                  gridColumnStart: 2,
+                  gridColumnEnd: 4
+                }}
+                label="Guess Path Detail"
+                control={
+                  <Checkbox
+                    checked={this.getPath().usesControlIntervalGuessing}
+                    onChange={(e) => {
+                      this.getPath().setControlIntervalGuessing(
+                        e.target.checked
+                      );
+                    }}
+                  />
+                }
+              />
+            </Tooltip>
+            <span className={styles.SidebarVerticalLine}></span>
+            <span style={{ gridColumnStart: 2, gridColumnEnd: 4 }}>
+              <InputList noCheckbox>
+                <Input
+                  title="Default"
+                  suffix="per segment"
+                  showCheckbox={false}
+                  enabled={!this.getPath().usesControlIntervalGuessing}
+                  setEnabled={(_) => {}}
+                  roundingPrecision={0}
+                  number={this.getPath().defaultControlIntervalCount}
+                  setNumber={(count) => {
+                    this.getPath().setDefaultControlIntervalCounts(count);
+                  }}
+                  titleTooltip="When not guessing, how many samples to use?"
+                ></Input>
+              </InputList>
+            </span>
+            {/* </FormGroup> */}
+            {/* <div
+              style={{
+                padding:"16px"
+              }}>
+                <TextField
+                    label="Default Control Interval Count"
+                    title="When not guessing, how many control intervals to use? (default 40)"
+                    defaultValue={this.getPath().defaultControlIntervalCount}
+                    inputMode="numeric"
+                    onChange={(e) => {this.getPath().setDefaultControlIntervalCounts(parseInt(e.target.value))}}
+                    fullWidth
+                  ></TextField>
+                </div></> */}
+          </>
+        )}
       </span>
     );
   }
@@ -168,9 +303,11 @@ class PathSelector extends Component<Props, State> {
     return (
       <div>
         <div className={styles.WaypointList}>
-          {Array.from(this.context.model.pathlist.paths.keys()).map((uuid) => (
-            <this.Option uuid={uuid} key={uuid}></this.Option>
-          ))}
+          {Array.from(this.context.model.document.pathlist.paths.keys()).map(
+            (uuid) => (
+              <this.Option uuid={uuid} key={uuid}></this.Option>
+            )
+          )}
         </div>
       </div>
     );

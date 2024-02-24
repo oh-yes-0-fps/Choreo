@@ -1,7 +1,8 @@
 import { types, getRoot, Instance, getParent, isAlive } from "mobx-state-tree";
 import { safeGetIdentifier } from "../util/mobxutils";
-import { IDocumentModelStore } from "./DocumentModel";
+import { IStateStore } from "./DocumentModel";
 import { SavedWaypoint } from "./DocumentSpecTypes";
+import { NavbarItemData } from "./UIStateStore";
 
 export const HolonomicWaypointStore = types
   .model("WaypointStore", {
@@ -10,17 +11,26 @@ export const HolonomicWaypointStore = types
     heading: 0,
     translationConstrained: true,
     headingConstrained: true,
-    controlIntervalCount: 0,
-    velocityMagnitude: 0,
-    velocityAngle: 0,
-    angularVelocity: 0,
-    velocityMagnitudeConstrained: false,
-    velocityAngleConstrained: false,
-    angularVelocityConstrained: false,
-    uuid: types.identifier,
+    controlIntervalCount: 40,
+    isInitialGuess: false,
+    uuid: types.identifier
   })
   .views((self) => {
     return {
+      isConstrainable() {
+        return !self.isInitialGuess;
+      },
+      get type(): number {
+        if (self.isInitialGuess) {
+          return 3; // Guess
+        } else if (self.headingConstrained) {
+          return 0; // Full
+        } else if (self.translationConstrained) {
+          return 1; // Translation
+        } else {
+          return 2; // Empty
+        }
+      },
       get selected(): boolean {
         if (!isAlive(self)) {
           return false;
@@ -28,56 +38,47 @@ export const HolonomicWaypointStore = types
         return (
           self.uuid ==
           safeGetIdentifier(
-            getRoot<IDocumentModelStore>(self).uiState.selectedSidebarItem
+            getRoot<IStateStore>(self).uiState.selectedSidebarItem
           )
         );
       },
       asSavedWaypoint(): SavedWaypoint {
-        let {
+        const {
           x,
           y,
+          isInitialGuess,
           heading,
-          velocityMagnitude,
-          velocityAngle,
           translationConstrained,
           headingConstrained,
-          velocityMagnitudeConstrained,
-          velocityAngleConstrained,
-          angularVelocity,
-          angularVelocityConstrained,
-          controlIntervalCount,
+          controlIntervalCount
         } = self;
         return {
           x,
           y,
           heading,
-          velocityMagnitude,
-          velocityAngle,
+          isInitialGuess,
           translationConstrained,
           headingConstrained,
-          velocityMagnitudeConstrained,
-          velocityAngleConstrained,
-          angularVelocity,
-          angularVelocityConstrained,
-          controlIntervalCount,
+          controlIntervalCount
         };
-      },
+      }
     };
   })
+  .views((self) => ({
+    get typeName() {
+      return NavbarItemData[self.type].name;
+    }
+  }))
   .actions((self) => {
     return {
       fromSavedWaypoint(point: SavedWaypoint) {
         self.x = point.x;
         self.y = point.y;
         self.heading = point.heading;
-        self.velocityMagnitude = point.velocityMagnitude;
-        self.velocityAngle = point.velocityAngle;
+        self.isInitialGuess = point.isInitialGuess;
         self.translationConstrained = point.translationConstrained;
         self.headingConstrained = point.headingConstrained;
-        self.velocityMagnitudeConstrained = point.velocityMagnitudeConstrained;
-        self.velocityAngleConstrained = point.velocityAngleConstrained;
-        self.angularVelocity = point.angularVelocity;
-        self.angularVelocityConstrained = point.angularVelocityConstrained;
+        self.controlIntervalCount = point.controlIntervalCount;
       },
 
       setX(x: number) {
@@ -97,7 +98,7 @@ export const HolonomicWaypointStore = types
       },
       setSelected(selected: boolean) {
         if (selected && !self.selected) {
-          const root = getRoot<IDocumentModelStore>(self);
+          const root = getRoot<IStateStore>(self);
           root.select(
             getParent<IHolonomicWaypointStore[]>(self)?.find(
               (point) => self.uuid == point.uuid
@@ -105,26 +106,52 @@ export const HolonomicWaypointStore = types
           );
         }
       },
-
-      setVelocityAngle(vAngle: number) {
-        self.velocityAngle = vAngle;
+      setInitialGuess(initialGuess: boolean) {
+        self.isInitialGuess = initialGuess;
       },
-      setVelocityAngleConstrained(velocityAngleConstrained: boolean) {
-        self.velocityAngleConstrained = velocityAngleConstrained;
-      },
-      setVelocityMagnitude(vMag: number) {
-        self.velocityMagnitude = vMag;
-      },
-      setVelocityMagnitudeConstrained(velocityMagnitudeConstrained: boolean) {
-        self.velocityMagnitudeConstrained = velocityMagnitudeConstrained;
-      },
-      setAngularVelocity(omega: number) {
-        self.angularVelocity = omega;
-      },
-      setAngularVelocityConstrained(angularVelocityConstrained: boolean) {
-        self.angularVelocityConstrained = angularVelocityConstrained;
-      },
+      setControlIntervalCount(count: number) {
+        self.controlIntervalCount = count;
+      }
     };
-  });
+  })
+  .actions((self) => ({
+    setType(type: number) {
+      switch (type) {
+        case 0:
+          self.setHeadingConstrained(true);
+          self.setTranslationConstrained(true);
+          self.setInitialGuess(false);
+          break;
+        case 1:
+          self.setHeadingConstrained(false);
+          self.setTranslationConstrained(true);
+          self.setInitialGuess(false);
+          break;
+        case 2:
+          self.setTranslationConstrained(false);
+          self.setHeadingConstrained(false);
+          self.setInitialGuess(false);
+          break;
+        case 3:
+          self.setTranslationConstrained(true);
+          self.setHeadingConstrained(true);
+          self.setInitialGuess(true);
+          break;
+        default:
+          break;
+      }
+    }
+  }))
+  .views((self) => ({
+    copyToClipboard(evt: ClipboardEvent) {
+      console.log("copying waypoint to", evt.clipboardData);
+      const content = JSON.stringify({
+        dataType: "choreo/waypoint",
+        ...self.asSavedWaypoint()
+      });
+      evt.clipboardData?.setData("text/plain", content);
+      console.log(evt.clipboardData);
+    }
+  }));
 export interface IHolonomicWaypointStore
   extends Instance<typeof HolonomicWaypointStore> {}

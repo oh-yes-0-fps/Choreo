@@ -7,7 +7,7 @@ type Props = {
   timestamp: number;
 };
 
-type State = {};
+type State = object;
 
 type Pose = { x: number; y: number; rot: number };
 
@@ -20,16 +20,16 @@ class InterpolatedRobot extends Component<Props, State> {
     return { x: store.x, y: store.y, rot: store.heading };
   }
   interpolate(p1: Pose, p2: Pose, frac: number) {
-    let rot1 = p1.rot;
-    let rot2 = p2.rot;
+    const rot1 = p1.rot;
+    const rot2 = p2.rot;
 
-    var shortest_angle =
+    const shortest_angle =
       ((((rot2 - rot1) % (Math.PI * 2)) + Math.PI * 3) % (Math.PI * 2)) -
       Math.PI;
     return {
       x: p1.x + frac * (p2.x - p1.x),
       y: p1.y + frac * (p2.y - p1.y),
-      rot: p1.rot + frac * shortest_angle,
+      rot: p1.rot + frac * shortest_angle
     };
   }
 
@@ -53,7 +53,7 @@ class InterpolatedRobot extends Component<Props, State> {
     let high = m_states.length - 1;
 
     while (low !== high) {
-      let mid = (low + high) / 2;
+      const mid = Math.floor((low + high) / 2);
       if (m_states[mid].timestamp < timeSeconds) {
         // This index and everything under it are less than the requested
         // timestamp. Therefore, we can discard them.
@@ -71,8 +71,8 @@ class InterpolatedRobot extends Component<Props, State> {
     // timestamp. If it is greater, we need to interpolate between the
     // previous state and the current state to get the exact state that we
     // want.
-    let sample = m_states[low];
-    let prevSample = m_states[low - 1];
+    const sample = m_states[low];
+    const prevSample = m_states[low - 1];
 
     // If the difference in states is negligible, then we are spot on!
     if (Math.abs(sample.timestamp - prevSample.timestamp) < 1e-9) {
@@ -88,32 +88,33 @@ class InterpolatedRobot extends Component<Props, State> {
   }
 
   render() {
-    if (this.context.model.pathlist.activePath.generated.length < 2) {
+    if (this.context.model.document.pathlist.activePath.generated.length < 2) {
       return <></>;
     }
-    let pose1 = this.sample(
+    const pose1 = this.sample(
       this.props.timestamp,
-      this.context.model.pathlist.activePath.generated
+      this.context.model.document.pathlist.activePath.generated
     );
     return (
       <g
         transform={`translate(${pose1.x}, ${pose1.y}) rotate(${
           (pose1.rot * 180) / Math.PI
         })`}
+        style={{ pointerEvents: "none" }}
       >
         <defs>
           <path
             id={"robot-bumpers"}
-            d={this.context.model.robotConfig.bumperSVGElement()}
+            d={this.context.model.document.robotConfig.bumperSVGElement()}
           ></path>
           <clipPath id={"robot-clip"}>
-            <use xlinkHref={`#robot-bumpers`} />
+            <use xlinkHref={"#robot-bumpers"} />
           </clipPath>
         </defs>
 
         <use
-          xlinkHref={`#robot-bumpers`}
-          clipPath={`url(#robot-clip)`}
+          xlinkHref={"#robot-bumpers"}
+          clipPath={"url(#robot-clip)"}
           stroke={"white"}
           strokeWidth={5 * this.context.model.uiState.fieldScalingFactor}
           fill={"transparent"}
@@ -121,34 +122,34 @@ class InterpolatedRobot extends Component<Props, State> {
           style={{ pointerEvents: "none" }}
         />
         <circle
-          cx={this.context.model.robotConfig.bumperLength / 2}
+          cx={this.context.model.document.robotConfig.bumperLength / 2}
           cy={0}
           r={0.1}
           fill="white"
         ></circle>
         {/* Wheel locations */}
         <circle
-          cx={this.context.model.robotConfig.wheelbase / 2}
-          cy={this.context.model.robotConfig.trackWidth / 2}
-          r={this.context.model.robotConfig.wheelRadius}
+          cx={this.context.model.document.robotConfig.wheelbase / 2}
+          cy={this.context.model.document.robotConfig.trackWidth / 2}
+          r={this.context.model.document.robotConfig.wheelRadius}
           fill="white"
         ></circle>
         <circle
-          cx={this.context.model.robotConfig.wheelbase / 2}
-          cy={-this.context.model.robotConfig.trackWidth / 2}
-          r={this.context.model.robotConfig.wheelRadius}
+          cx={this.context.model.document.robotConfig.wheelbase / 2}
+          cy={-this.context.model.document.robotConfig.trackWidth / 2}
+          r={this.context.model.document.robotConfig.wheelRadius}
           fill="white"
         ></circle>
         <circle
-          cx={-this.context.model.robotConfig.wheelbase / 2}
-          cy={-this.context.model.robotConfig.trackWidth / 2}
-          r={this.context.model.robotConfig.wheelRadius}
+          cx={-this.context.model.document.robotConfig.wheelbase / 2}
+          cy={-this.context.model.document.robotConfig.trackWidth / 2}
+          r={this.context.model.document.robotConfig.wheelRadius}
           fill="white"
         ></circle>
         <circle
-          cx={-this.context.model.robotConfig.wheelbase / 2}
-          cy={this.context.model.robotConfig.trackWidth / 2}
-          r={this.context.model.robotConfig.wheelRadius}
+          cx={-this.context.model.document.robotConfig.wheelbase / 2}
+          cy={this.context.model.document.robotConfig.trackWidth / 2}
+          r={this.context.model.document.robotConfig.wheelRadius}
           fill="white"
         ></circle>
       </g>

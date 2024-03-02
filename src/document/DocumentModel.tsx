@@ -1,6 +1,7 @@
 import { Instance, types } from "mobx-state-tree";
 import {
   SavedDocument,
+  SavedGeneratedWaypoint,
   SavedTrajectorySample,
   SAVE_FILE_VERSION,
   updateToCurrent
@@ -71,7 +72,7 @@ const StateStore = types
         if (pathStore === undefined) {
           throw "Path store is undefined";
         }
-
+        let generatedWaypoints: SavedGeneratedWaypoint[] = [];
         return new Promise((resolve, reject) => {
           pathStore.fixWaypointHeadings();
           const controlIntervalOptResult =
@@ -106,6 +107,16 @@ const StateStore = types
             }
           });
           pathStore.setGenerating(true);
+          // Capture the timestamps of the waypoints that were actually sent to the solver
+          const waypointTimestamps = pathStore.waypointTimestamps();
+          console.log(waypointTimestamps);
+          const stopPoints = pathStore.stopPoints();
+          generatedWaypoints = pathStore.waypoints.map((point, idx) => ({
+            timestamp: 0,
+            isStopPoint: stopPoints.includes(idx),
+            ...point.asSavedWaypoint()
+          }));
+          pathStore.eventMarkers.forEach((m) => m.updateTargetIndex);
           resolve(pathStore);
         })
           .then(
@@ -117,7 +128,9 @@ const StateStore = types
                 circleObstacles: pathStore.asSolverPath().circleObstacles,
                 polygonObstacles: []
               }),
-            (e) => e
+            (e) => {
+              throw e;
+            }
           )
           .then(
             (rust_traj) => {
@@ -133,8 +146,21 @@ const StateStore = types
                   timestamp: samp.timestamp
                 });
               });
-              pathStore.setTrajectory(newTraj);
               if (newTraj.length == 0) throw "No traj";
+              pathStore.setTrajectory(newTraj);
+              if (newTraj.length > 0) {
+                let currentInterval = 0;
+                generatedWaypoints.forEach((w) => {
+                  if (newTraj.at(currentInterval)?.timestamp !== undefined) {
+                    w.timestamp = newTraj.at(currentInterval)!.timestamp;
+                    currentInterval += w.controlIntervalCount;
+                  }
+                });
+                pathStore.eventMarkers.forEach((m) => {
+                  m.updateTargetIndex();
+                });
+              }
+              pathStore.setGeneratedWaypoints(generatedWaypoints);
             },
             (e) => {
               console.error(e);
@@ -157,6 +183,7 @@ const StateStore = types
           .finally(() => {
             pathStore.setGenerating(false);
             self.uiState.setPathAnimationTimestamp(0);
+            pathStore.setIsTrajectoryStale(false);
           });
       }
     };
@@ -222,6 +249,12 @@ const StateStore = types
         }
 
         this.callCenter(x, y, k);
+      },
+      zoomIn() {
+        window.dispatchEvent(new CustomEvent("zoomIn"));
+      },
+      zoomOut() {
+        window.dispatchEvent(new CustomEvent("zoomOut"));
       },
 
       // x, y, k are the center coordinates (x, y) and scale factor (k)

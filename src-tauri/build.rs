@@ -13,6 +13,7 @@ fn main() {
         println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/local/lib");
         println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib");
     }
+    println!("cargo:rustc-link-arg=-Wl,--verbose");
 
     tauri_build::build()
 }

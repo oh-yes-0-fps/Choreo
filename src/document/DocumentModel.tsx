@@ -163,10 +163,10 @@ const StateStore = types
             },
             (e) => {
               console.error(e);
-              if ((e as string).includes("infeasible")) {
+              if ((e as string).includes("Infeasible_Problem_Detected")) {
                 throw "Infeasible Problem Detected";
               }
-              if ((e as string).includes("maximum iterations exceeded")) {
+              if ((e as string).includes("Maximum_Iterations_Exceeded")) {
                 throw "Maximum Iterations Exceeded";
               }
               throw e;
@@ -203,7 +203,7 @@ const StateStore = types
           error: {
             render({ data, toastProps }) {
               console.error(data);
-              if ((data as string).includes("callback requested stop")) {
+              if ((data as string).includes("User_Requested_Stop")) {
                 toastProps.style = { visibility: "hidden" };
                 return `Cancelled "${pathName}"`;
               }

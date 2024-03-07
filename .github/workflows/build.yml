@@ -18,9 +18,10 @@ jobs:
             os: windows-2022
             tauri-build-flags:
 
-          - artifact-name: Windows-aarch64
-            os: windows-2022
-            tauri-build-flags: -- --target aarch64-pc-windows-msvc
+          # CasADi doesn't support Windows aarch64
+          # - artifact-name: Windows-aarch64
+          #   os: windows-2022
+          #   tauri-build-flags: -- --target aarch64-pc-windows-msvc
 
           - artifact-name: macOS-x86_64
             os: macOS-13
@@ -39,6 +40,18 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set to Windows GNU Rust Toolchain
+        if: matrix.os == 'windows-2022'
+        run: |
+          rustup install 1.76-gnu
+          rustup default 1.76-gnu
+
+      - name: Set up MinGW
+        if: matrix.os == 'windows-2022'
+        run: |
+          choco upgrade mingw --version=11.2.0 -y --no-progress --allow-downgrade
+          echo C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin >> $env:GITHUB_PATH
 
       - name: Install Linux dependencies
         if: matrix.os == 'ubuntu-latest'
@@ -84,9 +97,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact-name }}
-          path: |
-            src-tauri/target/**/release/bundle/appimage/*.AppImage
-            src-tauri/target/**/release/bundle/deb/*.deb
+          path: src-tauri/target/**/release/bundle/deb/*.deb
 
   release:
     name: Create draft release
@@ -124,10 +135,6 @@ jobs:
         working-directory: pkg/macOS-arm64/release/bundle/dmg
         run: mv *.dmg Choreo-${{ github.ref_name }}-macOS-arm64.dmg
 
-      - name: Rename Linux x86_64 file (.AppImage)
-        working-directory: pkg/Linux-x86_64/release/bundle/appimage
-        run: mv *.AppImage Choreo-${{ github.ref_name }}-Linux-x86_64.AppImage
-
       - name: Rename Linux x86_64 file (.deb)
         working-directory: pkg/Linux-x86_64/release/bundle/deb
         run: mv *.deb Choreo-${{ github.ref_name }}-Linux-x86_64.deb
@@ -139,6 +146,6 @@ jobs:
         with:
           name: Choreo ${{ github.ref_name }}
           tag: ${{ github.ref_name }}
-          artifacts: "pkg/**/*.AppImage,pkg/**/*.exe,pkg/**/*.deb,pkg/**/*.dmg"
+          artifacts: "pkg/**/*.exe,pkg/**/*.deb,pkg/**/*.dmg"
           draft: true
           prerelease: true

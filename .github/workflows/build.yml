@@ -55,6 +55,10 @@ jobs:
           # curl -o C:\ProgramData\mingw64\mingw64\bin\binutils.tar.gz https://ftp.gnu.org/gnu/binutils/binutils-2.42.tar.gz
           # echo "Downloaded binutils"
           # tar -xvzf C:\ProgramData\mingw64\mingw64\bin\binutils.tar.gz
+          ls C:\ProgramData\mingw64\mingw64\bin
+      - name: Set up binutils
+        if: matrix.os == 'windows-2022'
+        run: |
           pacman -S mingw-w64-x86_64-binutils
           ls C:\ProgramData\mingw64\mingw64\bin
       - name: Check MinGW versions

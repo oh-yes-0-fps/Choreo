@@ -52,9 +52,10 @@ jobs:
         run: |
           choco upgrade mingw --version=13.2.0 -y --no-progress --allow-downgrade
           echo "C:\ProgramData\mingw64\mingw64\bin" >> $env:GITHUB_PATH
-          curl -o C:\ProgramData\mingw64\mingw64\bin\binutils.tar.gz https://ftp.gnu.org/gnu/binutils/binutils-2.42.tar.gz
-          echo "Downloaded binutils"
-          tar -xvzf C:\ProgramData\mingw64\mingw64\bin\binutils.tar.gz
+          # curl -o C:\ProgramData\mingw64\mingw64\bin\binutils.tar.gz https://ftp.gnu.org/gnu/binutils/binutils-2.42.tar.gz
+          # echo "Downloaded binutils"
+          # tar -xvzf C:\ProgramData\mingw64\mingw64\bin\binutils.tar.gz
+          pacman -S mingw-w64-x86_64-binutils
           ls C:\ProgramData\mingw64\mingw64\bin
       - name: Check MinGW versions
         if: matrix.os == 'windows-2022'

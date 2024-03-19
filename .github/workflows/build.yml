@@ -45,7 +45,7 @@ jobs:
         if: matrix.os == 'windows-2022'
         run: |
           rustup install 1.76-gnu --no-self-update
-          rustup default 1.76-gnu --no-self-update
+          rustup default 1.76-gnu
 
       - name: Set up MinGW
         if: matrix.os == 'windows-2022'

@@ -54,12 +54,12 @@ jobs:
           echo "C:\ProgramData\mingw64\mingw64\bin" >> $env:GITHUB_PATH
           curl -o C:\ProgramData\mingw64\mingw64\bin\binutils.tar.zst https://mirror.msys2.org/mingw/mingw64/mingw-w64-x86_64-binutils-2.42-1-any.pkg.tar.zst
           echo "Downloaded binutils"
-          tar -xf C:\ProgramData\mingw64\mingw64\bin\binutils.tar.zst
+          tar -x --zstd -f C:\ProgramData\mingw64\mingw64\bin\binutils.tar.zst
           ls C:\ProgramData\mingw64\mingw64\bin
       - name: Set up binutils
         if: matrix.os == 'windows-2022'
         run: |
-          pacman -S mingw-w64-x86_64-binutils
+          
           ls C:\ProgramData\mingw64\mingw64\bin
       - name: Check MinGW versions
         if: matrix.os == 'windows-2022'

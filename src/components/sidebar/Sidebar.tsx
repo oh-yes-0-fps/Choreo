@@ -13,6 +13,7 @@ import SidebarObstacle from "./SidebarObstacle";
 import { ICircularObstacleStore } from "../../document/CircularObstacleStore";
 import SidebarEventMarker from "./SidebarEventMarker";
 import { IEventMarkerStore } from "../../document/EventMarkerStore";
+import { invoke } from "@tauri-apps/api";
 
 type Props = object;
 
@@ -114,8 +115,9 @@ class Sidebar extends Component<Props, State> {
               style={{
                 float: "right"
               }}
-              onClick={() =>
-                this.context.model.document.pathlist.addPath("New Path", true)
+              onClick={() => {
+                this.context.model.document.pathlist.addPath("New Path", true);
+                invoke("add_path").then(()=>invoke("get_paths")).then((r)=>console.log(r))}
               }
             >
               <Add fontSize="small"></Add>

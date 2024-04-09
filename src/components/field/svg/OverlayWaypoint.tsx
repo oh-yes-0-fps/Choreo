@@ -29,14 +29,16 @@ class OverlayWaypoint extends Component<Props, State> {
       context,
       strokeColor,
       strokeWidthPx,
-      dashed
+      dashed,
+      scale
     }: {
       context: React.ContextType<typeof DocumentManagerContext>;
       strokeColor: string;
       strokeWidthPx: number;
       dashed: boolean;
+      scale?: number;
     }) => (
-      <g>
+      <g transform={`scale(${scale ?? 1})`}>
         <defs>
           <path
             id={this.appendIndexID("bumpers")}
@@ -55,7 +57,7 @@ class OverlayWaypoint extends Component<Props, State> {
           xlinkHref={`#${this.appendIndexID("bumpers")}`}
           clipPath={`url(#${this.appendIndexID("clip")})`}
           stroke={strokeColor}
-          strokeWidth={strokeWidthPx * context.model.uiState.fieldScalingFactor}
+          strokeWidth={strokeWidthPx * context.model.uiState.fieldScalingFactor * 1.0/(scale??1)}
           strokeLinecap="square"
           fill={"transparent"}
           vectorEffect={"non-scaling-stroke"}
@@ -131,7 +133,7 @@ class OverlayWaypoint extends Component<Props, State> {
   componentDidMount() {
     if (this.rootRef.current) {
       const rotateHandleDrag = d3
-        .drag<SVGCircleElement, undefined>()
+        .drag<SVGPathElement, undefined>()
         .on("drag", (event) => this.dragPointRotate(event))
         .on("start", () => {
           this.selectWaypoint();
@@ -139,7 +141,7 @@ class OverlayWaypoint extends Component<Props, State> {
         })
         .on("end", (event) => this.context.history.stopGroup())
         .container(this.rootRef.current);
-      d3.select<SVGCircleElement, undefined>(
+      d3.select<SVGPathElement, undefined>(
         `#rotateTarget${this.props.index}`
       ).call(rotateHandleDrag);
 
@@ -178,11 +180,11 @@ class OverlayWaypoint extends Component<Props, State> {
   getBoxColor() {
     return this.props.waypoint.selected
       ? "var(--select-yellow)"
-      : "var(--accent-purple)";
+      : "white";
   }
   getDragTargetColor(): string {
     const waypoints = this.context.model.document.pathlist.activePath.waypoints;
-    let color = "var(--accent-purple)";
+    let color = "white";
     if (waypoints.length >= 2) {
       if (this.props.index === 0) {
         color = "green";
@@ -202,6 +204,13 @@ class OverlayWaypoint extends Component<Props, State> {
     const waypoint = this.props.waypoint;
     const boxColorStr = this.getBoxColor();
     const robotConfig = this.context.model.document.robotConfig;
+    const dragRadius = targetRadius *
+    1.5 *
+    Math.min(
+      robotConfig.bumperLength,
+      robotConfig.bumperWidth
+    )
+    const scale = waypoint.selected ? 1:0.5;
     return (
       <g ref={this.rootRef}>
         <g
@@ -216,21 +225,24 @@ class OverlayWaypoint extends Component<Props, State> {
               strokeColor={boxColorStr}
               strokeWidthPx={6}
               dashed={this.props.waypoint.type !== 0}
+              scale={scale}
             ></this.BumperBox>
           }
           {/* Heading drag point */}
-          <circle
-            cx={robotConfig.bumperLength / 2}
-            cy={0}
-            r={
-              targetRadius *
-              Math.min(robotConfig.bumperLength, robotConfig.bumperWidth)
-            }
+          <polyline transform={`scale(${scale})`}
+            points = {`
+              ${robotConfig.bumperLength / 2},${dragRadius}
+              ${robotConfig.bumperLength / 2 + 1.5 * dragRadius},0
+              ${robotConfig.bumperLength / 2},${-dragRadius}
+              ${robotConfig.bumperLength / 2},${dragRadius}
+            `}
             id={this.appendIndexID("rotateTarget")}
             fill={boxColorStr}
             strokeWidth={outlineWidth}
-            stroke="black"
-          ></circle>
+            stroke="transparent"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          ></polyline>
 
           {/* Center Drag Target */}
           {(() => {
@@ -244,14 +256,7 @@ class OverlayWaypoint extends Component<Props, State> {
                   <circle
                     cx={0}
                     cy={0}
-                    r={
-                      targetRadius *
-                      1.5 *
-                      Math.min(
-                        robotConfig.bumperLength,
-                        robotConfig.bumperWidth
-                      )
-                    }
+                    r={dragRadius}
                     id={this.appendIndexID("dragTarget")}
                     fill={
                       type == 2 || type == 3

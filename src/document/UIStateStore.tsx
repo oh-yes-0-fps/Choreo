@@ -32,6 +32,11 @@ import {
   ICircularObstacleStore
 } from "./CircularObstacleStore";
 import { EventMarkerStore, IEventMarkerStore } from "./EventMarkerStore";
+import {
+  PathGradient,
+  PathGradients
+} from "../components/config/robotconfig/PathGradient";
+import LocalStorageKeys from "../util/LocalStorageKeys";
 
 export const SelectableItem = types.union(
   {
@@ -177,7 +182,7 @@ export type SelectableItemTypes =
   | IEventMarkerStore
   | undefined;
 
-/* Visibility stuff */
+/* ViewOptionsPanel items */
 const ViewData = {
   Field: {
     index: 0,
@@ -250,7 +255,7 @@ export const UIStateStore = types
     saveFileDir: types.maybe(types.string),
     isGradleProject: types.maybe(types.boolean),
     waypointPanelOpen: false,
-    visibilityPanelOpen: false,
+    isViewOptionsPanelOpen: false,
     robotConfigOpen: false,
     mainMenuOpen: false,
     settingsTab: types.refinement(
@@ -263,7 +268,12 @@ export const UIStateStore = types
       (arr) => arr?.length == ViewItemData.length
     ),
     selectedSidebarItem: types.maybe(types.safeReference(SelectableItem)),
-    selectedNavbarItem: NavbarLabels.FullWaypoint
+    selectedNavbarItem: NavbarLabels.FullWaypoint,
+    selectedPathGradient: types.maybe(
+      types.union(
+        ...Object.keys(PathGradients).map((key) => types.literal(key))
+      )
+    )
   })
   .views((self: any) => {
     return {
@@ -377,8 +387,8 @@ export const UIStateStore = types
     setWaypointPanelOpen(open: boolean) {
       self.waypointPanelOpen = open;
     },
-    setVisibilityPanelOpen(open: boolean) {
-      self.visibilityPanelOpen = open;
+    setViewOptionsPanelOpen(open: boolean) {
+      self.isViewOptionsPanelOpen = open;
     },
     setPathAnimationTimestamp(time: number) {
       self.pathAnimationTimestamp = time;
@@ -399,6 +409,21 @@ export const UIStateStore = types
     },
     setSelectedNavbarItem(item: number) {
       self.selectedNavbarItem = item;
+    },
+    setSelectedPathGradient(pathGradient: PathGradient) {
+      self.selectedPathGradient = pathGradient.name;
+      this._saveSelectedPathGradientToLocalStorage();
+    },
+    _saveSelectedPathGradientToLocalStorage() {
+      localStorage.setItem(
+        LocalStorageKeys.PATH_GRADIENT,
+        self.selectedPathGradient
+      );
+    },
+    loadPathGradientFromLocalStorage() {
+      self.selectedPathGradient =
+        localStorage.getItem(LocalStorageKeys.PATH_GRADIENT) ??
+        PathGradients.Velocity.name;
     }
   }));
 export interface IUIStateStore extends Instance<typeof UIStateStore> {}

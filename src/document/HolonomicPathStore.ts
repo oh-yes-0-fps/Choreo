@@ -45,6 +45,8 @@ export const HolonomicPathStore = types
     visibleWaypointsEnd: types.number,
     constraints: types.array(types.union(...Object.values(ConstraintStores))),
     generated: types.frozen<Array<SavedTrajectorySample>>([]),
+    generationProgress: types.frozen<Array<SavedTrajectorySample>>([]),
+    generationIterationNumber: 0,
     generatedWaypoints: types.frozen<Array<SavedGeneratedWaypoint>>([]),
     generating: false,
     isTrajectoryStale: true,
@@ -165,6 +167,7 @@ export const HolonomicPathStore = types
             const saved: SavedEventMarker = {
               name: marker.name,
               target: target ?? null,
+              trajTargetIndex: marker.trajTargetIndex ?? null,
               targetTimestamp: marker.targetTimestamp ?? null,
               offset: marker.offset,
               command: marker.command.asSavedCommand()
@@ -247,7 +250,7 @@ export const HolonomicPathStore = types
         return wptIndices;
         // remove duplicates
       },
-      stopPointIndices() {
+      stopPointIndices(): Array<number | undefined> {
         const stopPoints = this.stopPoints();
         return stopPoints.length > 1
           ? stopPoints
@@ -344,7 +347,10 @@ export const HolonomicPathStore = types
   .actions((self) => {
     return {
       setIsTrajectoryStale(isTrajectoryStale: boolean) {
-        self.isTrajectoryStale = isTrajectoryStale;
+        const history = getRoot<IStateStore>(self).document.history;
+        history.withoutUndo(() => {
+          self.isTrajectoryStale = isTrajectoryStale;
+        });
       },
       setGeneratedWaypoints(waypoints: Array<SavedGeneratedWaypoint>) {
         self.generatedWaypoints = waypoints;
@@ -566,6 +572,18 @@ export const HolonomicPathStore = types
           self.generating = false;
         });
       },
+      setIterationNumber(it: number) {
+        const history = getRoot<IStateStore>(self).document.history;
+        history.withoutUndo(() => {
+          self.generationIterationNumber = it;
+        });
+      },
+      setInProgressTrajectory(trajectory: Array<SavedTrajectorySample>) {
+        const history = getRoot<IStateStore>(self).document.history;
+        history.withoutUndo(() => {
+          self.generationProgress = trajectory;
+        });
+      },
       setGenerating(generating: boolean) {
         const history = getRoot<IStateStore>(self).document.history;
         history.withoutUndo(() => {
@@ -674,24 +692,15 @@ export const HolonomicPathStore = types
         savedPath.eventMarkers.forEach((saved) => {
           const rootCommandType = saved.command.type;
           let target: WaypointID | undefined;
-          let targetIndex = 0;
           if (saved.target !== null) {
             target = self.savedWaypointIdToWaypointId(saved.target);
-            if (saved.target === "last") {
-              targetIndex = self.waypoints.length;
-            } else if (saved.target === "first") {
-              targetIndex = 0;
-            } else {
-              targetIndex = saved.target;
-            }
           }
 
-          //if (target === undefined) return;
           const marker = EventMarkerStore.create({
             name: saved.name,
-            target: target as WaypointID,
+            target: target as WaypointID | undefined,
             offset: saved.offset,
-            trajTargetIndex: self.isTrajectoryStale ? undefined : targetIndex,
+            trajTargetIndex: saved.trajTargetIndex ?? undefined,
             command: CommandStore.create({
               type: rootCommandType,
               name: "",
@@ -777,7 +786,27 @@ export const HolonomicPathStore = types
         const distance = Math.sqrt(dx * dx + dy * dy);
         const maxForce = robotConfig.wheelMaxTorque / robotConfig.wheelRadius;
         const maxAccel = (maxForce * 4) / robotConfig.mass; // times 4 for 4 modules
-        const maxVel = robotConfig.wheelMaxVelocity * robotConfig.wheelRadius;
+
+        // Default to robotConfig's max velocity
+        let maxVel = robotConfig.wheelMaxVelocity * robotConfig.wheelRadius;
+
+        // Iterate through constraints to find applicable "Max Velocity" constraints
+        self.constraints.forEach((constraint) => {
+          if (constraint.type === "MaxVelocity") {
+            const startIdx = constraint.getStartWaypointIndex();
+            const endIdx = constraint.getEndWaypointIndex();
+
+            // Check if current waypoint "i" is within the scope of this constraint
+            if (startIdx !== undefined && endIdx !== undefined) {
+              if (i >= startIdx && i <= endIdx) {
+                if (constraint.velocity !== undefined) {
+                  maxVel = Math.min(maxVel, constraint.velocity);
+                }
+              }
+            }
+          }
+        });
+
         const distanceAtCruise = distance - (maxVel * maxVel) / maxAccel;
         if (distanceAtCruise < 0) {
           // triangle
@@ -807,17 +836,19 @@ export const HolonomicPathStore = types
       // when mobx first runs it to determine dependencies.
       staleDisposer = reaction(
         () => {
-          toJS(self.waypoints);
-          toJS(self.constraints);
-          // does not need toJS to do a deep check on this, since it's just a boolean
-          self.usesControlIntervalGuessing;
-          toJS(self.obstacles);
-          return true;
+          // Reaction needs the return value to change,
+          // so we can't just access the values and do nothing with them
+
+          return {
+            waypoints: toJS(self.waypoints),
+            constraints: toJS(self.constraints),
+            // does not need toJS to do a deep check on this, since it's just a boolean
+            guessing: self.usesControlIntervalGuessing,
+            obstacles: toJS(self.obstacles)
+          };
         },
         (value) => {
-          if (value) {
-            self.setIsTrajectoryStale(true);
-          }
+          self.setIsTrajectoryStale(true);
         }
       );
       autosaveDisposer = reaction(

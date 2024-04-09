@@ -130,14 +130,14 @@ export class DocumentManager {
         console.log("Received file event from dir: ");
         console.log(event.payload);
         this.handleOpenFileEvent(event)
-          .catch((err) =>
-            toast.error(`Failed to open last Choreo file: ${err}`)
-          )
           .then(() => {
             toast.success(
               `Opened last Choreo file '${(event.payload as OpenFileEventPayload).name}'`
             );
-          });
+          })
+          .catch((err) =>
+            toast.error(`Failed to open last Choreo file: ${err}`)
+          );
       }
     );
 
@@ -241,6 +241,20 @@ export class DocumentManager {
       updateTitleUnlisten();
     });
     hotkeys.unbind();
+    hotkeys("escape", () => {
+      this.model.uiState.setSelectedSidebarItem(undefined);
+      this.model.uiState.setSelectedNavbarItem(-1);
+    });
+    hotkeys("ctrl+o,command+o", () => {
+      dialog
+        .confirm("You may lose unsaved or not generated changes. Continue?", {
+          title: "Choreo",
+          type: "warning"
+        })
+        .then((proceed) => {
+          proceed && invoke("open_file_dialog");
+        });
+    });
     hotkeys("f5,ctrl+shift+r,ctrl+r", function (event, handler) {
       event.preventDefault();
     });
@@ -457,6 +471,7 @@ export class DocumentManager {
         usesObstacles: false
       }
     });
+    this.model.uiState.loadPathGradientFromLocalStorage();
     this.model.document.pathlist.addPath("NewPath");
     this.model.document.history.clear();
   }

@@ -14,6 +14,7 @@ import { PathListStore } from "./PathListStore";
 import { UndoManager } from "mst-middlewares";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.min.css";
+import { listen, UnlistenFn } from "@tauri-apps/api/event";
 
 export const DocumentStore = types
   .model("DocumentStore", {
@@ -115,18 +116,89 @@ const StateStore = types
             isStopPoint: stopPoints.includes(idx),
             ...point.asSavedWaypoint()
           }));
-          pathStore.eventMarkers.forEach((m) => m.updateTargetIndex);
+          pathStore.eventMarkers.forEach((m) => m.updateTargetIndex());
           resolve(pathStore);
         })
           .then(
-            () =>
-              invoke("generate_trajectory", {
-                path: pathStore.waypoints,
-                config: self.document.robotConfig.asSolverRobotConfig(),
-                constraints: pathStore.asSolverPath().constraints,
-                circleObstacles: pathStore.asSolverPath().circleObstacles,
-                polygonObstacles: []
-              }),
+            () => {
+              const handle = pathStore.uuid
+                .split("")
+                .reduce((a, b) => ((a << 5) - a + b.charCodeAt(0)) | 0, 0);
+              let unlisten: UnlistenFn;
+              let controlIntervalCount = 0;
+              for (const waypoint of generatedWaypoints) {
+                controlIntervalCount += waypoint.controlIntervalCount;
+              }
+              // last waypoint doesn't count, except as its own interval.
+              controlIntervalCount -=
+                generatedWaypoints[generatedWaypoints.length - 1]
+                  .controlIntervalCount;
+              controlIntervalCount += 1;
+
+              pathStore.setIterationNumber(0);
+
+              return listen("solver-status", async (event) => {
+                if (event.payload!.handle == handle) {
+                  const samples = event.payload.traj.samples;
+                  const progress = pathStore.generationProgress;
+                  // mutate in-progress trajectory in place if it's already the right size
+                  // should avoid allocations on every progress update
+                  if (progress.length != controlIntervalCount) {
+                    console.log("resize", controlIntervalCount, samples.length);
+                    pathStore.setInProgressTrajectory(
+                      samples.map((samp) => ({
+                        x: samp.x,
+                        y: samp.y,
+                        heading: samp.heading,
+                        angularVelocity: samp.angular_velocity,
+                        velocityX: samp.velocity_x,
+                        velocityY: samp.velocity_y,
+                        timestamp: samp.timestamp
+                      }))
+                    );
+                  } else {
+                    for (let i = 0; i < controlIntervalCount; i++) {
+                      const samp = samples[i];
+                      const prog = progress[i];
+                      prog.x = samp.x;
+                      prog.y = samp.y;
+                      prog.heading = samp.heading;
+                      prog.angularVelocity = samp.angular_velocity;
+                      prog.velocityX = samp.velocity_x;
+                      prog.velocityY = samp.velocity_y;
+                      prog.timestamp = samp.timestamp;
+                    }
+                  }
+                  // todo: get this from the progress update, so it actually means something
+                  // beyond just triggering UI updates
+                  pathStore.setIterationNumber(
+                    pathStore.generationIterationNumber + 1
+                  );
+                }
+              })
+                .then((unlistener) => {
+                  unlisten = unlistener;
+                  return invoke("generate_trajectory", {
+                    path: pathStore.waypoints,
+                    config: self.document.robotConfig.asSolverRobotConfig(),
+                    constraints: pathStore.asSolverPath().constraints,
+                    circleObstacles: pathStore.asSolverPath().circleObstacles,
+                    polygonObstacles: [],
+                    handle: handle
+                  });
+                })
+                .then(
+                  (result) => {
+                    unlisten();
+                    return result;
+                  },
+                  (e) => {
+                    unlisten();
+                    throw e;
+                  }
+                );
+            },
+
             (e) => {
               throw e;
             }
@@ -146,20 +218,25 @@ const StateStore = types
                 });
               });
               if (newTraj.length == 0) throw "No traj";
-              pathStore.setTrajectory(newTraj);
-              if (newTraj.length > 0) {
-                let currentInterval = 0;
-                generatedWaypoints.forEach((w) => {
-                  if (newTraj.at(currentInterval)?.timestamp !== undefined) {
-                    w.timestamp = newTraj.at(currentInterval)!.timestamp;
-                    currentInterval += w.controlIntervalCount;
-                  }
-                });
-                pathStore.eventMarkers.forEach((m) => {
-                  m.updateTargetIndex();
-                });
-              }
-              pathStore.setGeneratedWaypoints(generatedWaypoints);
+              self.document.history.startGroup(() => {
+                pathStore.setTrajectory(newTraj);
+                if (newTraj.length > 0) {
+                  let currentInterval = 0;
+                  generatedWaypoints.forEach((w) => {
+                    if (newTraj.at(currentInterval)?.timestamp !== undefined) {
+                      w.timestamp = newTraj.at(currentInterval)!.timestamp;
+                      currentInterval += w.controlIntervalCount;
+                    }
+                  });
+                  pathStore.eventMarkers.forEach((m) => {
+                    m.updateTargetIndex();
+                  });
+                }
+                pathStore.setGeneratedWaypoints(generatedWaypoints);
+                // set this within the group so it gets picked up in the autosave
+                pathStore.setIsTrajectoryStale(false);
+                self.document.history.stopGroup();
+              });
             },
             (e) => {
               console.error(e);
@@ -173,6 +250,7 @@ const StateStore = types
             }
           )
           .finally(() => {
+            // none of the below should trigger autosave
             pathStore.setGenerating(false);
             self.uiState.setPathAnimationTimestamp(0);
             pathStore.setIsTrajectoryStale(false);

@@ -32,7 +32,7 @@ impl Constraint {
     pub fn of(definition: &ConstraintDefinition) ->Self{
         Constraint {
             scope: ConstraintScope::none(),
-            data: definition.default_data.clone()
+            data: definition.default_data
         }
     }
 

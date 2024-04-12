@@ -37,10 +37,10 @@ impl Default for ChoreoRobotConfig {
 
 impl  ChoreoRobotConfig {
     pub fn wheelMaxVelocity(&self) -> f64 {
-        return (self.motor_max_velocity * (PI * 2.0)) / 60.0 / self.gearing;
+        (self.motor_max_velocity * (PI * 2.0)) / 60.0 / self.gearing
       }
     pub fn wheelMaxTorque(&self) -> f64 {
-    return self.motor_max_torque * self.gearing;
+    self.motor_max_torque * self.gearing
     }
     pub fn as_drivetrain(&self) -> SwerveDrivetrain {
         let wheelMaxVelocity = self.wheelMaxVelocity();

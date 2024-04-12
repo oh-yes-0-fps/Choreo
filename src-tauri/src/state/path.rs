@@ -1,48 +1,42 @@
 use slotmap::SlotMap;
+use sqlx::{Pool, Sqlite};
 use trajoptlib::{
-    HolonomicTrajectory, InitialGuessPoint, SwerveDrivetrain, SwerveModule, SwervePathBuilder,
+    HolonomicTrajectory, InitialGuessPoint, SwervePathBuilder,
 };
 
-use super::{constraint::{ConstraintData, Constraint, ConstraintDefinition, ConstraintID}, robotconfig::ChoreoRobotConfig, waypoint::{Waypoint, WaypointID, scopeToPosition, WaypointIDFFI}};
+use super::{constraint::{ConstraintData, Constraint, ConstraintDefinition, ConstraintID}, robotconfig::ChoreoRobotConfig, waypoint::{Waypoint, WaypointID, scope_to_position,get_waypoint_impl}, utils::sqlxStringify};
 use serde_with::serde_as;
-#[serde_as]
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Path {
     pub config: ChoreoRobotConfig,
-    point_pool: SlotMap<WaypointID, Waypoint>,
-    #[serde_as(as="Vec<WaypointIDFFI>")]
-    pub waypoints: Vec<
-    WaypointID>,
+    pub waypoints: Vec<WaypointID>,
     constraint_pool: SlotMap<ConstraintID, Constraint>,
     pub constraints: Vec<ConstraintID>
 }
 
 impl Path {
-
     pub fn new() -> Self {
-        let mut points: SlotMap<WaypointID, Waypoint> = SlotMap::with_key();
         Path {
             config: ChoreoRobotConfig::default(),
-            point_pool: points,
             waypoints : vec![],
             constraint_pool : SlotMap::with_key(),
             constraints: vec![]
         }
     }
-    pub fn add_waypoint(&mut self, pt: Waypoint) -> WaypointID {
-        let id = self.point_pool.insert(pt);
+    pub async fn add_waypoint(&mut self, pool: &Pool<Sqlite>, pt: Waypoint) -> Result<WaypointID, sqlx::Error> {
+        let id = crate::waypoint::add_waypoint_impl(pool, &pt).await?;
         self.waypoints.push(id);
-        id
+        Ok(id)
     }
 
-    pub fn delete_waypoint (&mut self, pt: WaypointID) {
-        if let Some(index) = self.index_of(pt) {
-            self.waypoints.remove(index);
-            if let None = self.index_of(pt) {
-                self.point_pool.remove(pt);
-            }
-        }
-    }
+    // pub fn delete_waypoint (&mut self, pt: WaypointID) {
+    //     if let Some(index) = self.index_of(pt) {
+    //         self.waypoints.remove(index);
+    //         if self.index_of(pt).is_none() {
+    //             self.point_pool.remove(pt);
+    //         }
+    //     }
+    // }
 
     pub fn index_of(&self, pt: WaypointID) -> Option<usize>{
         self.waypoints.iter().position(|&r| r == pt)
@@ -62,7 +56,8 @@ impl Path {
 
 
 
-    pub fn generate_trajectory(&self
+    pub async fn generate_trajectory(&self,
+        pool: &Pool<Sqlite>
     ) -> Result<HolonomicTrajectory, String> {
         let mut path_builder = SwervePathBuilder::new();
         let mut wpt_cnt: usize = 0;
@@ -70,8 +65,8 @@ impl Path {
         let mut guess_points_after_waypoint: Vec<InitialGuessPoint> = Vec::new();
         let mut actual_points : Vec<&WaypointID> = Vec::new();
         for (idx, id) in self.waypoints.iter().enumerate() {
-            let wpt: &Waypoint = &(self.point_pool[*id]);
-            if wpt.isInitialGuess {
+            let wpt: Waypoint = crate::waypoint::get_waypoint_impl(pool, id).await.map_err(sqlxStringify)?;
+            if wpt.is_initial_guess {
                 let guess_point: InitialGuessPoint = InitialGuessPoint {
                     x: wpt.x,
                     y: wpt.y,
@@ -79,7 +74,7 @@ impl Path {
                 };
                 guess_points_after_waypoint.push(guess_point);
                 if let Some(last) = control_interval_counts.last_mut() {
-                    *last += wpt.controlIntervalCount;
+                    *last +=  (wpt.control_interval_count) as usize;
                 }
             } else {
                 if wpt_cnt > 0 {
@@ -89,10 +84,10 @@ impl Path {
                 guess_points_after_waypoint.clear();
                 actual_points.push(id);
                 
-                if wpt.headingConstrained && wpt.translationConstrained {
+                if wpt.heading_constrained && wpt.translation_constrained {
                     path_builder.pose_wpt(wpt_cnt, wpt.x, wpt.y, wpt.heading);
                     wpt_cnt += 1;
-                } else if wpt.translationConstrained {
+                } else if wpt.translation_constrained {
                     path_builder.translation_wpt(wpt_cnt, wpt.x, wpt.y, wpt.heading);
                     wpt_cnt += 1;
                 } else {
@@ -100,7 +95,7 @@ impl Path {
                     wpt_cnt += 1;
                 }
                 if idx != self.waypoints.len() - 1 {
-                    control_interval_counts.push(wpt.controlIntervalCount);
+                    control_interval_counts.push((wpt.control_interval_count) as usize);
                 }
             }
         }
@@ -110,8 +105,8 @@ impl Path {
         for (_, constraint) in &self.constraint_pool {
             let scope = &constraint.scope;
             let positionOpt = (
-                scopeToPosition(&actual_points, &scope.0),
-                scopeToPosition(&actual_points, &scope.1)
+                scope_to_position(&actual_points, &scope.0),
+                scope_to_position(&actual_points, &scope.1)
             );
             let mut isWaypoint = false;
 
@@ -177,8 +172,9 @@ impl Path {
                                 // points in between straight-line segments are automatically zero-velocity points
                                 path_builder.wpt_linear_velocity_max_magnitude(this_pt, 0.0f64);
                             }
-                            let pt1 = &self.point_pool[*actual_points[this_pt]];
-                            let pt2 = &self.point_pool[*actual_points[next_pt]];
+                            let pt1 = &get_waypoint_impl(pool,actual_points[this_pt]).await.map_err(sqlxStringify)?;
+
+                            let pt2 = &get_waypoint_impl(pool,actual_points[next_pt]).await.map_err(sqlxStringify)?;
                             let x1 = pt1.x;
                             let x2 = pt2.x;
                             let y1 = pt1.y;

@@ -117,7 +117,18 @@ class Sidebar extends Component<Props, State> {
               }}
               onClick={() => {
                 this.context.model.document.pathlist.addPath("New Path", true);
-                invoke("add_path").then(()=>invoke("get_paths")).then((r)=>console.log(r))}
+                Promise.resolve().then(async () => {
+                  let id = await invoke("add_waypoint");
+                  await invoke("update_waypoint", {
+                    id,
+                    update:{
+                    x:2.0,
+                    is_initial_guess:false,
+                    control_interval_count: 20
+                  }})
+                  console.log(await invoke("get_waypoint", {id}))
+                })
+              }
               }
             >
               <Add fontSize="small"></Add>

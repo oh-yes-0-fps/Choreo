@@ -1,3 +1,4 @@
+use core::panic;
 use std::{
     str::FromStr,
     sync::{
@@ -11,13 +12,13 @@ use slotmap::{DefaultKey, Key, SlotMap};
 mod state;
 
 use crate::state::{
-    path::Path,
+    path::{Path, add_path_waypoint_impl, get_path_waypoints_impl, delete_path_waypoint_impl},
     waypoint::{
         add_waypoint, add_waypoint_impl, get_waypoint, get_waypoint_impl, update_waypoint,
         update_waypoint_impl,
     },
 };
-use state::waypoint::{self, PartialWaypoint, Waypoint};
+use state::{waypoint::{self, PartialWaypoint, Waypoint}, path};
 use tauri::{Manager, State};
 
 #[derive(Deserialize)]
@@ -43,7 +44,8 @@ impl Managed {
 pub async fn create_tables(
     pool: &Pool<Sqlite>,
 ) -> Result<<Sqlite as sqlx::Database>::QueryResult, Error> {
-    waypoint::create_waypoint_table(pool).await
+    waypoint::create_waypoint_table(pool).await?;
+    path::create_path_tables(pool).await
 }
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
@@ -54,18 +56,39 @@ async fn test_db(handle: tauri::AppHandle) {
     let pool = handle.state::<Pool<Sqlite>>();
     let id = add_waypoint_impl(&pool, &Waypoint::new()).await;
     println!("{:?}", id);
-    let second_id = id.unwrap();
-    println!("{:?}", add_waypoint_impl(&pool, &Waypoint::new()).await);
-    println!("{:?}", get_waypoint_impl(&pool, &second_id).await);
+    let first_id = id.unwrap();
+    let id2 = add_waypoint_impl(&pool, &Waypoint::new()).await;
+    println!("{:?}", id2);
+    let second_id = id2.unwrap();
+    println!("{:?}", get_waypoint_impl(&pool, &first_id).await);
 
     // let mut update = PartialWaypoint::default();
     // update.x=Some(1.0f64);
     let update = serde_json::from_str::<PartialWaypoint>("{\"y\":1.0}").unwrap();
     println!(
         "{:?}",
-        update_waypoint_impl(&pool, &second_id, update).await
+        update_waypoint_impl(&pool, &first_id, update.clone()).await
     );
-    println!("{:?}", get_waypoint_impl(&pool, &second_id).await);
+    println!("{:?}", get_waypoint_impl(&pool, &first_id).await);
+
+    let path_id = 2;
+    println!("add to path: {:?}",add_path_waypoint_impl(&pool, &path_id, &first_id).await);
+    println!("add to path: {:?}",add_path_waypoint_impl(&pool, &path_id, &second_id).await);
+    println!("add to path: {:?}",add_path_waypoint_impl(&pool, &path_id, &add_waypoint_impl(&pool, &Waypoint::new()).await.unwrap()).await);
+    let path = get_path_waypoints_impl(&pool, &path_id).await.unwrap();
+    println!("get path: {:?}",path);
+    println!(
+        "{:?}",
+        update_waypoint_impl(&pool, &path[1], update.clone()).await
+    );
+    println!("{:?}", get_waypoint_impl(&pool, &path[1]).await);
+    let deleted = path[1];
+    println!("delete {:?}", delete_path_waypoint_impl(&pool, &path_id, &path[1]).await);
+    
+    // path vector is now out of date
+    let path = get_path_waypoints_impl(&pool, &path_id).await.unwrap();
+    println!("get path: {:?}",path);
+    println!("deleted waypoint {:?}", get_waypoint_impl(&pool, &deleted).await);
 }
 fn main() {
     /*

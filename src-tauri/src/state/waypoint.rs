@@ -18,7 +18,7 @@ pub enum WaypointScope {
 
 #[allow(non_snake_case)]
 #[derive(serde::Serialize, serde::Deserialize, sqlx::FromRow, Debug, Partial)]
-#[partially(derive(Default, serde::Serialize, serde::Deserialize, Debug))]
+#[partially(derive(Default, serde::Serialize, serde::Deserialize, Debug, Clone))]
 pub struct Waypoint {
     pub x: f64,
     pub y: f64,
@@ -30,7 +30,7 @@ pub struct Waypoint {
 }
 
 pub static wpt_id : AtomicI64  = AtomicI64::new(0);
-
+pub static keys : &str = "x, y, heading, is_initial_guess, translation_constrained, heading_constrained, control_interval_count";
 
 
 impl Waypoint {
@@ -87,12 +87,12 @@ pub async fn create_waypoint_table(
     )
     .execute(pool)
     .await
+
+
 }
 use sqlx::{
     Error, Pool, Sqlite,
 };
-
-use crate::Managed;
 
 #[tauri::command] 
 pub async fn add_waypoint(
@@ -101,7 +101,7 @@ pub async fn add_waypoint(
 ) -> Result<i64, String> {
     let _pool = handle.state::<Pool<Sqlite>>();
     let mut wpt = Waypoint::new();
-    if (waypoint.is_some()) {
+    if waypoint.is_some() {
         wpt.apply_some(waypoint.unwrap());
     }
     let res = add_waypoint_impl(
@@ -159,9 +159,9 @@ pub async fn add_waypoint_impl(
 ) -> Result<i64, Error> {
     let new_id = wpt_id.fetch_add(1, Ordering::Relaxed);
     sqlx::query(
-        "INSERT INTO waypoints
-        (wpt_id, x, y, heading, is_initial_guess, translation_constrained, heading_constrained, control_interval_count) VALUES(
-        ?,       ?, ?, ?,       ?,                ?,                       ?,                   ?)",
+    format!("INSERT INTO waypoints
+            (wpt_id, {}) VALUES(
+            ?,       ?, ?, ?,       ?,                ?,                       ?,                   ?)", keys).as_str(),
     )
     .bind(new_id)
     .bind(waypoint.x)
@@ -204,8 +204,8 @@ pub async fn get_waypoint_impl(
     id: &i64,
 ) -> Result<Waypoint, Error> {
     sqlx::query_as::<Sqlite, Waypoint>(
-        "SELECT x, y, heading, is_initial_guess, translation_constrained, heading_constrained, control_interval_count
-        FROM waypoints WHERE wpt_id == ?",
+        format!("SELECT {}
+        FROM waypoints WHERE wpt_id == ?",keys).as_str(),
     )
     .bind(id)
     .fetch_one(pool)

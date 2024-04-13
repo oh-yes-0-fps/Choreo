@@ -1,15 +1,15 @@
 use std::f64::consts::PI;
 
 use partially::Partial;
-use sqlx::{FromRow, Pool, Sqlite, Error};
-use trajoptlib::{
-    SwerveDrivetrain, SwerveModule
-};
+use sqlx::{Error, FromRow, Pool, Sqlite};
+use trajoptlib::{SwerveDrivetrain, SwerveModule};
 
 pub static keys: &str = "mass, rotational_inertia, motor_max_velocity, motor_max_torque, gearing,
     wheel_radius, bumper_width, bumper_width, bumper_length, wheelbase, trackwidth";
 #[allow(non_snake_case)]
-#[derive(serde::Serialize, serde::Deserialize, Partial, FromRow, sqlxinsert::SqliteInsert, Debug)]
+#[derive(
+    serde::Serialize, serde::Deserialize, Partial, FromRow, sqlxinsert::SqliteInsert, Debug,
+)]
 #[partially(derive(serde::Serialize, serde::Deserialize, Debug))]
 pub struct ChoreoRobotConfig {
     pub mass: f64,
@@ -32,20 +32,20 @@ impl Default for ChoreoRobotConfig {
             bumper_length: 0.876,
             wheelbase: 0.578,
             trackwidth: 0.578,
-            motor_max_torque:1.162,
+            motor_max_torque: 1.162,
             motor_max_velocity: 4800.0,
-            gearing:6.75,
-            wheel_radius:0.050799972568014815
+            gearing: 6.75,
+            wheel_radius: 0.050799972568014815,
         }
     }
 }
 
-impl  ChoreoRobotConfig {
+impl ChoreoRobotConfig {
     pub fn wheel_max_velocity(&self) -> f64 {
         (self.motor_max_velocity * (PI * 2.0)) / 60.0 / self.gearing
-      }
+    }
     pub fn wheel_max_torque(&self) -> f64 {
-    self.motor_max_torque * self.gearing
+        self.motor_max_torque * self.gearing
     }
     pub fn as_drivetrain(&self) -> SwerveDrivetrain {
         let wheel_max_velocity = self.wheel_max_velocity();
@@ -61,39 +61,39 @@ impl  ChoreoRobotConfig {
                     y: half_track_width,
                     wheel_radius: self.wheel_radius,
                     wheel_max_angular_velocity: wheel_max_velocity,
-                    wheel_max_torque: wheel_max_torque,
+                    wheel_max_torque,
                 },
                 SwerveModule {
                     x: half_wheel_base,
                     y: -half_track_width,
                     wheel_radius: self.wheel_radius,
                     wheel_max_angular_velocity: wheel_max_velocity,
-                    wheel_max_torque: wheel_max_torque,
+                    wheel_max_torque,
                 },
                 SwerveModule {
                     x: -half_wheel_base,
                     y: half_track_width,
                     wheel_radius: self.wheel_radius,
                     wheel_max_angular_velocity: wheel_max_velocity,
-                    wheel_max_torque: wheel_max_torque,
+                    wheel_max_torque,
                 },
                 SwerveModule {
                     x: -half_wheel_base,
                     y: -half_track_width,
                     wheel_radius: self.wheel_radius,
                     wheel_max_angular_velocity: wheel_max_velocity,
-                    wheel_max_torque: wheel_max_torque,
+                    wheel_max_torque,
                 },
-            ]
+            ],
         }
     }
 }
 
-    pub async fn create_robot_config_table(
-        pool: &Pool<Sqlite>,
-    ) -> Result<<Sqlite as sqlx::Database>::QueryResult, Error> {
-        sqlx::query(
-            "Create table robot_config (
+pub async fn create_robot_config_table(
+    pool: &Pool<Sqlite>,
+) -> Result<<Sqlite as sqlx::Database>::QueryResult, Error> {
+    sqlx::query(
+        "Create table robot_config (
                 config_id INT PRIMARY KEY,
                 mass                REAL NOT NULL,
                 rotational_inertia  REAL NOT NULL,
@@ -107,18 +107,20 @@ impl  ChoreoRobotConfig {
                 trackwidth          REAL NOT NULL
             )
         ",
-        )
-        .execute(pool)
-        .await?;
-        ChoreoRobotConfig::default().insert_raw(pool, "robot_config").await
-    }
+    )
+    .execute(pool)
+    .await?;
+    ChoreoRobotConfig::default()
+        .insert_raw(pool, "robot_config")
+        .await
+}
 
-    pub async fn update_robot_config_impl(
-        pool: &Pool<Sqlite>,
-        update: PartialChoreoRobotConfig
-    ) -> Result<(), Error> {
-
-        sqlx::query("
+pub async fn update_robot_config_impl(
+    pool: &Pool<Sqlite>,
+    update: PartialChoreoRobotConfig,
+) -> Result<(), Error> {
+    sqlx::query(
+        "
         UPDATE robot_config
         SET
             mass                = COALESCE(?, mass),
@@ -131,26 +133,27 @@ impl  ChoreoRobotConfig {
             bumper_length       = COALESCE(?, bumper_length),
             wheelbase           = COALESCE(?, wheelbase),
             trackwidth          = COALESCE(?, trackwidth)
-        "
-        )
-        .bind(update.mass)
-        .bind(update.rotational_inertia)
-        .bind(update.motor_max_velocity)
-        .bind(update.motor_max_torque)
-        .bind(update.gearing)
-        .bind(update.wheel_radius)
-        .bind(update.bumper_width)
-        .bind(update.bumper_length)
-        .bind(update.wheelbase)
-        .bind(update.trackwidth)
-        .execute(pool).await.map(|_|())
-    }
+        ",
+    )
+    .bind(update.mass)
+    .bind(update.rotational_inertia)
+    .bind(update.motor_max_velocity)
+    .bind(update.motor_max_torque)
+    .bind(update.gearing)
+    .bind(update.wheel_radius)
+    .bind(update.bumper_width)
+    .bind(update.bumper_length)
+    .bind(update.wheelbase)
+    .bind(update.trackwidth)
+    .execute(pool)
+    .await
+    .map(|_| ())
+}
 
-    pub async fn get_robot_config_impl(
-        pool: &Pool<Sqlite>
-    ) -> Result<ChoreoRobotConfig, Error>{
-        sqlx::query_as::<Sqlite, ChoreoRobotConfig>(
-            format!(
-            "SELECT {} FROM robot_config", keys).as_str()
-        ).fetch_one(pool).await
-    }
+pub async fn get_robot_config_impl(pool: &Pool<Sqlite>) -> Result<ChoreoRobotConfig, Error> {
+    sqlx::query_as::<Sqlite, ChoreoRobotConfig>(
+        format!("SELECT {} FROM robot_config", keys).as_str(),
+    )
+    .fetch_one(pool)
+    .await
+}

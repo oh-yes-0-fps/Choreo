@@ -1,29 +1,30 @@
-use core::panic;
+
 use std::{
     str::FromStr,
-    sync::{
-        atomic::{AtomicI64, Ordering},
-        Mutex,
-    }, process::exit,
 };
 
-use serde::Deserialize;
-use slotmap::{DefaultKey, Key, SlotMap};
+
+
 mod state;
 
 use crate::state::{
-    path::{add_path_waypoint_impl, get_path_waypoints_impl, delete_path_waypoint_impl, generate_trajectory},
+    constraint::{add_constraint, Constraint, Constraints},
+    path::{
+        add_path_waypoint_impl, generate_trajectory,
+        get_path_waypoints_impl,
+    },
     waypoint::{
         add_waypoint, add_waypoint_impl, get_waypoint, get_waypoint_impl, update_waypoint,
         update_waypoint_impl,
-    }, robotconfig::{get_robot_config_impl, update_robot_config_impl, PartialChoreoRobotConfig}, constraint::{add_constraint, ConstraintData, Constraint, ConstraintDefs, Constraints},
+    },
 };
-use state::{waypoint::{self, PartialWaypoint, Waypoint}, path, robotconfig, constraint};
-use tauri::{Manager, State};
+use state::{
+    constraint, path, robotconfig,
+    waypoint::{self, PartialWaypoint, Waypoint},
+};
+use tauri::{Manager};
 
-pub async fn create_tables(
-    pool: &Pool<Sqlite>,
-) -> Result<(), Error> {
+pub async fn create_tables(pool: &Pool<Sqlite>) -> Result<(), Error> {
     waypoint::create_waypoint_table(pool).await?;
     path::create_path_tables(pool).await?;
     robotconfig::create_robot_config_table(pool).await?;
@@ -59,12 +60,26 @@ async fn test_db(handle: tauri::AppHandle) {
     println!("{:?}", get_waypoint_impl(&pool, &first_id).await);
 
     let path_id = 2;
-    println!("add to path: {:?}",add_path_waypoint_impl(&pool, &path_id, &first_id).await);
-    println!("add to path: {:?}",add_path_waypoint_impl(&pool, &path_id, &second_id).await);
-    println!("add to path: {:?}",add_path_waypoint_impl(&pool, &path_id, &add_waypoint_impl(&pool, &Waypoint::new()).await.unwrap()).await);
+    println!(
+        "add to path: {:?}",
+        add_path_waypoint_impl(&pool, &path_id, &first_id).await
+    );
+    println!(
+        "add to path: {:?}",
+        add_path_waypoint_impl(&pool, &path_id, &second_id).await
+    );
+    println!(
+        "add to path: {:?}",
+        add_path_waypoint_impl(
+            &pool,
+            &path_id,
+            &add_waypoint_impl(&pool, &Waypoint::new()).await.unwrap()
+        )
+        .await
+    );
     let path = get_path_waypoints_impl(&pool, &path_id).await.unwrap();
-    println!("get path: {:?}",path);
-    
+    println!("get path: {:?}", path);
+
     // path vector is now out of date
     // let path = get_path_waypoints_impl(&pool, &path_id).await.unwrap();
     // println!("get path: {:?}",path);
@@ -72,8 +87,15 @@ async fn test_db(handle: tauri::AppHandle) {
     // let config_update = serde_json::from_str::<PartialChoreoRobotConfig>("{\"mass\":50.0, \"motor_max_velocity\":4000}").unwrap();
     // println!("updated {:?}", update_robot_config_impl(&pool, config_update).await);
     // println!("robot config {:?}", get_robot_config_impl(&pool).await);
-    println!("add constraint {:?}", add_constraint(&pool, &path_id,
-        &Constraint::of(&Constraints.wpt_velocity_direction)).await);
+    println!(
+        "add constraint {:?}",
+        add_constraint(
+            &pool,
+            &path_id,
+            &Constraint::of(&Constraints.wpt_velocity_direction)
+        )
+        .await
+    );
 }
 fn main() {
     /*
@@ -147,7 +169,6 @@ fn main() {
             update_waypoint,
             get_waypoint,
             generate_traj
-            
         ])
         //     generate_trajectory,
         //     cancel,
@@ -163,4 +184,3 @@ fn main() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-

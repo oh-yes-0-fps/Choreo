@@ -1,20 +1,17 @@
 pub type WaypointID = i64;
 
-use std::sync::atomic::{Ordering, AtomicI64};
+use std::sync::atomic::{AtomicI64, Ordering};
 
 use partially::Partial;
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
-pub enum WaypointScope { 
-    
-    Uuid(
-        WaypointID
-    ),
+pub enum WaypointScope {
+    Uuid(WaypointID),
     First,
-    Last
+    Last,
 }
 
-    use slotmap::{Key, KeyData};
-    use tauri::Manager;
+
+use tauri::Manager;
 
 #[allow(non_snake_case)]
 #[derive(serde::Serialize, serde::Deserialize, sqlx::FromRow, Debug, Partial)]
@@ -27,17 +24,15 @@ pub struct Waypoint {
     pub is_initial_guess: bool,
     pub translation_constrained: bool,
     pub heading_constrained: bool,
-    pub control_interval_count: i32
+    pub control_interval_count: i32,
 }
 
 /* 0 is the first waypoint of a path, 1 is the last */
-pub static WPT_ID : AtomicI64  = AtomicI64::new(2);
+pub static WPT_ID: AtomicI64 = AtomicI64::new(2);
 pub static KEYS : &str = "x, y, heading, is_initial_guess, translation_constrained, heading_constrained, control_interval_count";
-
 
 impl Waypoint {
     pub fn new() -> Self {
-
         Waypoint {
             id: WPT_ID.fetch_add(1, Ordering::Relaxed),
             x: 0.0,
@@ -46,30 +41,51 @@ impl Waypoint {
             is_initial_guess: false,
             translation_constrained: true,
             heading_constrained: true,
-            control_interval_count: 40
+            control_interval_count: 40,
         }
     }
 }
 
-
-pub fn scope_to_waypoint_id<'a>(waypoints: &'a Vec<WaypointID>, scope: & Option<WaypointScope>) -> Option<&'a WaypointID> {
+pub fn scope_to_waypoint_id<'a>(
+    waypoints: &'a Vec<WaypointID>,
+    scope: &Option<WaypointScope>,
+) -> Option<&'a WaypointID> {
     if let Some(scope) = scope.as_ref() {
-    match scope {
-        WaypointScope::Uuid(id) => waypoints.iter().find(|&r| *r == *id),
-        WaypointScope::First => waypoints.first(),
-        WaypointScope::Last => waypoints.last()
+        match scope {
+            WaypointScope::Uuid(id) => waypoints.iter().find(|&r| *r == *id),
+            WaypointScope::First => waypoints.first(),
+            WaypointScope::Last => waypoints.last(),
+        }
+    } else {
+        None
     }
-} else {None}
 }
 
-pub fn scope_to_position(waypoints: &Vec<&WaypointID>, scope: & Option<WaypointScope>) -> Option<usize> {
+pub fn scope_to_position(
+    waypoints: &Vec<&WaypointID>,
+    scope: &Option<WaypointScope>,
+) -> Option<usize> {
     if let Some(scope) = scope.as_ref() {
-    match scope {
-        WaypointScope::Uuid(id) => waypoints.iter().position(|&r| *r == *id),
-        WaypointScope::First => if !waypoints.is_empty() {Some(0)} else {None},
-        WaypointScope::Last => if !waypoints.is_empty() {Some(waypoints.len()-1)} else {None}
+        match scope {
+            WaypointScope::Uuid(id) => waypoints.iter().position(|&r| *r == *id),
+            WaypointScope::First => {
+                if !waypoints.is_empty() {
+                    Some(0)
+                } else {
+                    None
+                }
+            }
+            WaypointScope::Last => {
+                if !waypoints.is_empty() {
+                    Some(waypoints.len() - 1)
+                } else {
+                    None
+                }
+            }
+        }
+    } else {
+        None
     }
-} else {None}
 }
 
 pub async fn create_waypoint_table(
@@ -90,65 +106,46 @@ pub async fn create_waypoint_table(
     )
     .execute(pool)
     .await
-
-
 }
-use sqlx::{
-    Error, Pool, Sqlite,
-};
+use sqlx::{Error, Pool, Sqlite};
 
 use super::utils::sqlx_stringify;
 
-#[tauri::command] 
+#[tauri::command]
 pub async fn add_waypoint(
     handle: tauri::AppHandle,
-    waypoint: Option<PartialWaypoint>
+    waypoint: Option<PartialWaypoint>,
 ) -> Result<i64, String> {
     let _pool = handle.state::<Pool<Sqlite>>();
     let mut wpt = Waypoint::new();
     if waypoint.is_some() {
         wpt.apply_some(waypoint.unwrap());
     }
-    add_waypoint_impl(
-        &_pool,
-        &wpt
-    )
-    .await.map_err(sqlx_stringify)
+    add_waypoint_impl(&_pool, &wpt)
+        .await
+        .map_err(sqlx_stringify)
 }
 
-#[tauri::command] 
+#[tauri::command]
 pub async fn update_waypoint(
     handle: tauri::AppHandle,
     id: i64,
-    update: PartialWaypoint
+    update: PartialWaypoint,
 ) -> Result<(), String> {
     let _pool = handle.state::<Pool<Sqlite>>();
-    update_waypoint_impl(
-        &_pool,
-        &id,
-        update
-    )
-    .await.map(|_|()).map_err(sqlx_stringify)
+    update_waypoint_impl(&_pool, &id, update)
+        .await
+        .map(|_| ())
+        .map_err(sqlx_stringify)
 }
 
-#[tauri::command] 
-pub async fn get_waypoint(
-    handle: tauri::AppHandle,
-    id: i64
-) -> Result<Waypoint, String> {
+#[tauri::command]
+pub async fn get_waypoint(handle: tauri::AppHandle, id: i64) -> Result<Waypoint, String> {
     let _pool = handle.state::<Pool<Sqlite>>();
-    get_waypoint_impl(
-        &_pool,
-        &id
-    )
-    .await.map_err(sqlx_stringify)
+    get_waypoint_impl(&_pool, &id).await.map_err(sqlx_stringify)
 }
 
-
-pub async fn add_waypoint_impl(
-    pool: &Pool<Sqlite>,
-    waypoint: &Waypoint,
-) -> Result<i64, Error> {
+pub async fn add_waypoint_impl(pool: &Pool<Sqlite>, waypoint: &Waypoint) -> Result<i64, Error> {
     let new_id = WPT_ID.fetch_add(1, Ordering::Relaxed);
     sqlx::query(
     format!("INSERT INTO waypoints
@@ -170,9 +167,10 @@ pub async fn add_waypoint_impl(
 pub async fn update_waypoint_impl(
     pool: &Pool<Sqlite>,
     id: &i64,
-    wpt: PartialWaypoint) -> Result<<Sqlite as sqlx::Database>::QueryResult, Error> {
-        sqlx::query(
-            "UPDATE waypoints SET
+    wpt: PartialWaypoint,
+) -> Result<<Sqlite as sqlx::Database>::QueryResult, Error> {
+    sqlx::query(
+        "UPDATE waypoints SET
             x = COALESCE(?, x),
             y = COALESCE(?, y),
             heading = COALESCE(?, heading),
@@ -181,26 +179,27 @@ pub async fn update_waypoint_impl(
             heading_constrained = COALESCE(?, heading_constrained),
             control_interval_count = COALESCE(?, control_interval_count),
             WHERE wpt_id == ?",
-        )
-        .bind(wpt.x)
-        .bind(wpt.y)
-        .bind(wpt.heading)
-        .bind(wpt.is_initial_guess)
-        .bind(wpt.translation_constrained)
-        .bind(wpt.heading_constrained)
-        .bind(wpt.control_interval_count)
-        .bind(id)
-        .execute(pool)
-        .await
+    )
+    .bind(wpt.x)
+    .bind(wpt.y)
+    .bind(wpt.heading)
+    .bind(wpt.is_initial_guess)
+    .bind(wpt.translation_constrained)
+    .bind(wpt.heading_constrained)
+    .bind(wpt.control_interval_count)
+    .bind(id)
+    .execute(pool)
+    .await
 }
 
-pub async fn get_waypoint_impl(
-    pool: &Pool<Sqlite>,
-    id: &i64,
-) -> Result<Waypoint, Error> {
+pub async fn get_waypoint_impl(pool: &Pool<Sqlite>, id: &i64) -> Result<Waypoint, Error> {
     sqlx::query_as::<Sqlite, Waypoint>(
-        format!("SELECT {}
-        FROM waypoints WHERE wpt_id == ?",KEYS).as_str(),
+        format!(
+            "SELECT {}
+        FROM waypoints WHERE wpt_id == ?",
+            KEYS
+        )
+        .as_str(),
     )
     .bind(id)
     .fetch_one(pool)

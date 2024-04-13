@@ -4,7 +4,7 @@ use std::{
     sync::{
         atomic::{AtomicI64, Ordering},
         Mutex,
-    },
+    }, process::exit,
 };
 
 use serde::Deserialize;
@@ -12,46 +12,33 @@ use slotmap::{DefaultKey, Key, SlotMap};
 mod state;
 
 use crate::state::{
-    path::{Path, add_path_waypoint_impl, get_path_waypoints_impl, delete_path_waypoint_impl},
+    path::{add_path_waypoint_impl, get_path_waypoints_impl, delete_path_waypoint_impl, generate_trajectory},
     waypoint::{
         add_waypoint, add_waypoint_impl, get_waypoint, get_waypoint_impl, update_waypoint,
         update_waypoint_impl,
-    },
+    }, robotconfig::{get_robot_config_impl, update_robot_config_impl, PartialChoreoRobotConfig}, constraint::{add_constraint, ConstraintData, Constraint, ConstraintDefs, Constraints},
 };
-use state::{waypoint::{self, PartialWaypoint, Waypoint}, path};
+use state::{waypoint::{self, PartialWaypoint, Waypoint}, path, robotconfig, constraint};
 use tauri::{Manager, State};
-
-#[derive(Deserialize)]
-struct Managed {
-    wpt_id: AtomicI64,
-    paths: Mutex<SlotMap<DefaultKey, Mutex<Path>>>,
-}
-impl Managed {
-    pub fn add_path(&self) {
-        self.paths.lock().unwrap().insert(Mutex::from(Path::new()));
-    }
-
-    pub fn getPathIDs(&self) -> Vec<u64> {
-        self.paths
-            .lock()
-            .unwrap()
-            .keys()
-            .map(|k| k.data().as_ffi())
-            .collect::<Vec<u64>>()
-    }
-}
 
 pub async fn create_tables(
     pool: &Pool<Sqlite>,
-) -> Result<<Sqlite as sqlx::Database>::QueryResult, Error> {
+) -> Result<(), Error> {
     waypoint::create_waypoint_table(pool).await?;
-    path::create_path_tables(pool).await
+    path::create_path_tables(pool).await?;
+    robotconfig::create_robot_config_table(pool).await?;
+    constraint::create_constraint_tables(pool).await
 }
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
     Error, Pool, Sqlite,
 };
 
+#[tauri::command]
+async fn generate_traj(handle: tauri::AppHandle) {
+    let pool = handle.state::<Pool<Sqlite>>();
+    println!("{:?}", generate_trajectory(&pool, 2).await);
+}
 async fn test_db(handle: tauri::AppHandle) {
     let pool = handle.state::<Pool<Sqlite>>();
     let id = add_waypoint_impl(&pool, &Waypoint::new()).await;
@@ -77,18 +64,16 @@ async fn test_db(handle: tauri::AppHandle) {
     println!("add to path: {:?}",add_path_waypoint_impl(&pool, &path_id, &add_waypoint_impl(&pool, &Waypoint::new()).await.unwrap()).await);
     let path = get_path_waypoints_impl(&pool, &path_id).await.unwrap();
     println!("get path: {:?}",path);
-    println!(
-        "{:?}",
-        update_waypoint_impl(&pool, &path[1], update.clone()).await
-    );
-    println!("{:?}", get_waypoint_impl(&pool, &path[1]).await);
-    let deleted = path[1];
-    println!("delete {:?}", delete_path_waypoint_impl(&pool, &path_id, &path[1]).await);
     
     // path vector is now out of date
-    let path = get_path_waypoints_impl(&pool, &path_id).await.unwrap();
-    println!("get path: {:?}",path);
-    println!("deleted waypoint {:?}", get_waypoint_impl(&pool, &deleted).await);
+    // let path = get_path_waypoints_impl(&pool, &path_id).await.unwrap();
+    // println!("get path: {:?}",path);
+    //println!("robot config {:?}", get_robot_config_impl(&pool).await);
+    // let config_update = serde_json::from_str::<PartialChoreoRobotConfig>("{\"mass\":50.0, \"motor_max_velocity\":4000}").unwrap();
+    // println!("updated {:?}", update_robot_config_impl(&pool, config_update).await);
+    // println!("robot config {:?}", get_robot_config_impl(&pool).await);
+    println!("add constraint {:?}", add_constraint(&pool, &path_id,
+        &Constraint::of(&Constraints.wpt_velocity_direction)).await);
 }
 fn main() {
     /*
@@ -134,12 +119,9 @@ fn main() {
         }
     */
     tauri::Builder::default()
-        .manage(Managed {
-            wpt_id: AtomicI64::new(5),
-            paths: Mutex::from(SlotMap::with_key()),
-        })
         .setup(|app| {
             let handle = app.handle();
+            let handle2 = app.handle();
             tauri::async_runtime::spawn(async move {
                 let sqlite_opts = SqliteConnectOptions::from_str(":memory:").unwrap();
 
@@ -154,16 +136,18 @@ fn main() {
                 println!("{:?}", create_tables(&pool).await);
                 handle.manage(pool);
                 test_db(handle).await;
+                let pool = handle2.state::<Pool<Sqlite>>();
+                println!("{:?}", generate_trajectory(&pool, 2).await)
             });
             Ok(())
             // define in memory DB connection options
         })
         .invoke_handler(tauri::generate_handler![
-            get_paths,
-            add_path,
             add_waypoint,
             update_waypoint,
-            get_waypoint
+            get_waypoint,
+            generate_traj
+            
         ])
         //     generate_trajectory,
         //     cancel,
@@ -180,14 +164,3 @@ fn main() {
         .expect("error while running tauri application");
 }
 
-#[tauri::command]
-
-fn add_path(state: State<Managed>) {
-    state.add_path()
-}
-
-#[tauri::command]
-
-fn get_paths(state: State<Managed>) -> Vec<u64> {
-    state.getPathIDs()
-}

@@ -1,6 +1,9 @@
 
+use serde::{Serialize, Deserialize};
 use sqlx::{Error, Pool, Sqlite};
+use tauri::Manager;
 use trajoptlib::{HolonomicTrajectory, InitialGuessPoint, SwervePathBuilder};
+use partially::Partial;
 
 use super::{
     constraint::{
@@ -9,7 +12,7 @@ use super::{
     robotconfig::{get_robot_config_impl},
     utils::sqlx_stringify,
     waypoint::{
-        get_waypoint_impl, scope_to_position, Waypoint, WaypointID, KEYS,
+        get_waypoint_impl, scope_to_position, PartialWaypoint, Waypoint, WaypointID, KEYS, add_waypoint_impl,
     },
 };
 
@@ -195,17 +198,53 @@ pub async fn create_path_tables(
         "Create table path_waypoints (
                 wpt INT,
                 path INT,
-                next INT references waypoints(wpt_id),
-                prev INT references waypoints(wpt_id),
+                next INT references waypoints(id),
+                prev INT references waypoints(id),
                 primary key (wpt, path),
                 CONSTRAINT WPT_FK
                     FOREIGN KEY (wpt)
-                    REFERENCES waypoints(wpt_id)
+                    REFERENCES waypoints(id)
             )
         ",
     )
     .execute(pool)
     .await
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct UpdatePathWaypointsPayload {
+    id: i64,
+    order: Vec<Waypoint>
+}
+pub async fn broadcast_path_update(handle: &tauri::AppHandle, path_id: i64) -> Result<(), String> {
+    let pool = handle.state::<Pool<Sqlite>>();
+    let ids = get_path_waypoints_impl(&pool, &path_id).await.map_err(sqlx_stringify)?;
+    handle.emit_all("update_path_waypoints", UpdatePathWaypointsPayload{id: path_id, order: ids});
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_path_waypoints(
+    handle: tauri::AppHandle, id: i64
+) -> Result<Vec<Waypoint>, String> {
+    let pool = handle.state::<Pool<Sqlite>>();
+    let pts = get_path_waypoints_impl(&pool, &id).await.map_err(sqlx_stringify)?;
+    Ok(pts)
+}
+
+#[tauri::command]
+pub async fn add_path_waypoint(
+    handle: tauri::AppHandle,
+    id: i64,
+    update: PartialWaypoint
+) -> Result<Waypoint, String> {
+    let pool = handle.state::<Pool<Sqlite>>();
+    let mut waypoint = Waypoint::new();
+    waypoint.apply_some(update);
+    let wpt_id = add_waypoint_impl(&pool, &waypoint).await.map_err(sqlx_stringify)?;
+    add_path_waypoint_impl(&pool, &id, &wpt_id).await.map_err(sqlx_stringify)?;
+    broadcast_path_update(&handle, id).await?;
+    Ok(waypoint)
 }
 
 pub async fn add_path_waypoint_impl(
@@ -249,8 +288,10 @@ pub async fn delete_path_waypoint_impl(
     pool: &Pool<Sqlite>,
     path_id: &i64,
     wpt_id: &i64,
-) -> Result<Waypoint, sqlx::Error> {
-    let wpt = get_waypoint_impl(pool, wpt_id).await?;
+) -> Result<(), sqlx::Error> {
+    let wpt_opt = get_waypoint_impl(pool, wpt_id).await?;
+    if wpt_opt.is_none() {return Ok(())};
+    let wpt = wpt_opt.unwrap();
     let (prev, next) = sqlx::query_as::<Sqlite, (i64, i64)>(
         "SELECT prev, next FROM path_waypoints
         WHERE path==? AND wpt==?",
@@ -281,14 +322,14 @@ pub async fn delete_path_waypoint_impl(
             .bind(wpt_id)
             .execute(pool)
             .await?;
-        sqlx::query("DELETE FROM waypoints WHERE wpt_id==?")
+        sqlx::query("DELETE FROM waypoints WHERE id==?")
             .bind(wpt_id)
             .execute(pool)
             .await
     };
     // TODO end transaction, rollback if necessary
     // if result is successful, ignore the query result and return Ok(wpt)
-    result.map(|_r| wpt)
+    result.map(|_r| ())
 }
 /*
  * Move the tgt waypoint before the before waypoint. if before is None, tgt is moved to the end of the list
@@ -324,7 +365,7 @@ pub async fn get_path_waypoints_impl(
         SELECT m.* FROM path_waypoints AS m
         JOIN Path AS t ON m.prev = t.wpt
     )
-    SELECT {} FROM Path INNER JOIN waypoints ON wpt==wpt_id;
+    SELECT {} FROM Path INNER JOIN waypoints ON wpt==id;
     ",
             KEYS
         )

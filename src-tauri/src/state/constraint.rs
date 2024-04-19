@@ -116,8 +116,8 @@ pub async fn create_constraint_tables(pool: &Pool<Sqlite>) -> Result<(), Error> 
         "CREATE TABLE constraints (
                 constraint_id serial INT PRIMARY KEY,
                 path INT NOT NULL,
-                start INT REFERENCES waypoints(wpt_id),
-                end INT REFERENCES waypoints(wpt_id),
+                start INT REFERENCES waypoints(id),
+                end INT REFERENCES waypoints(id),
                 kind INT NOT NULL,
                 arg0 REAL,
                 arg1 REAL,

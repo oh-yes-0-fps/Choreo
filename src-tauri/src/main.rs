@@ -10,8 +10,8 @@ mod state;
 use crate::state::{
     constraint::{add_constraint, Constraint, Constraints},
     path::{
-        add_path_waypoint_impl, generate_trajectory,
-        get_path_waypoints_impl,
+        add_path_waypoint_impl, add_path_waypoint,generate_trajectory,
+        get_path_waypoints_impl, get_path_waypoints
     },
     waypoint::{
         add_waypoint, add_waypoint_impl, get_waypoint, get_waypoint_impl, update_waypoint,
@@ -167,6 +167,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             add_waypoint,
             update_waypoint,
+            add_path_waypoint,
+            get_path_waypoints,
             get_waypoint,
             generate_traj
         ])

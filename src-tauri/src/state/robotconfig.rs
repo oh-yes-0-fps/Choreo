@@ -4,9 +4,9 @@ use partially::Partial;
 use sqlx::{Error, FromRow, Pool, Sqlite};
 use trajoptlib::{SwerveDrivetrain, SwerveModule};
 
-pub static keys: &str = "mass, rotational_inertia, motor_max_velocity, motor_max_torque, gearing,
+pub static KEYS: &str = "mass, rotational_inertia, motor_max_velocity, motor_max_torque, gearing,
     wheel_radius, bumper_width, bumper_width, bumper_length, wheelbase, trackwidth";
-#[allow(non_snake_case)]
+    
 #[derive(
     serde::Serialize, serde::Deserialize, Partial, FromRow, sqlxinsert::SqliteInsert, Debug,
 )]
@@ -152,7 +152,7 @@ pub async fn update_robot_config_impl(
 
 pub async fn get_robot_config_impl(pool: &Pool<Sqlite>) -> Result<ChoreoRobotConfig, Error> {
     sqlx::query_as::<Sqlite, ChoreoRobotConfig>(
-        format!("SELECT {} FROM robot_config", keys).as_str(),
+        format!("SELECT {} FROM robot_config", KEYS).as_str(),
     )
     .fetch_one(pool)
     .await

@@ -8,10 +8,9 @@ use std::{
 mod state;
 
 use crate::state::{
-    constraint::{add_constraint, Constraint, Constraints},
+    constraint::{add_constraint, get_constraint, Constraint, Constraints},
     path::{
-        add_path_waypoint_impl, add_path_waypoint,generate_trajectory,
-        get_path_waypoints_impl, get_path_waypoints
+        add_path_waypoint, add_path_waypoint_impl, generate_trajectory, get_path_waypoints, get_path_waypoints_impl
     },
     waypoint::{
         add_waypoint, add_waypoint_impl, get_waypoint, get_waypoint_impl, update_waypoint,
@@ -87,14 +86,18 @@ async fn test_db(handle: tauri::AppHandle) {
     // let config_update = serde_json::from_str::<PartialChoreoRobotConfig>("{\"mass\":50.0, \"motor_max_velocity\":4000}").unwrap();
     // println!("updated {:?}", update_robot_config_impl(&pool, config_update).await);
     // println!("robot config {:?}", get_robot_config_impl(&pool).await);
+    let cons = add_constraint(
+        &pool,
+        &path_id,
+        &Constraint::of(&Constraints.wpt_velocity_direction)
+    )
+    .await.unwrap();
     println!(
         "add constraint {:?}",
-        add_constraint(
-            &pool,
-            &path_id,
-            &Constraint::of(&Constraints.wpt_velocity_direction)
-        )
-        .await
+        cons
+    );
+    println!(
+        "constraint {:?}", serde_json::to_string(&get_constraint(&pool, &cons).await.unwrap()).unwrap()
     );
 }
 fn main() {

@@ -25,8 +25,8 @@ import FieldImage24 from "./fields/FieldImage24.svelte";
 // import FieldGeneratedWaypoints from "./FieldGeneratedWaypoints";
 // import FieldEventMarkerAddLayer from "./FieldEventMarkerAddLayer";
 
-let waypoints = PathOrder(get(activePath));
-$: console.log($waypoints);
+$: waypoints = PathOrder($activePath);
+$: console.log("field wpts", $waypoints);
 let xPan = 0;
 let yPan = 0;
 let zoom = 1;
@@ -215,9 +215,12 @@ let zoomed = (e: any) => {
                 on:click={(e) => createWaypoint(e)}
               ></circle>
         {/if}
+        {#key $waypoints}
         {#each $waypoints as pt, idx}
+        
         <OverlayWaypoint index={idx} point={pt}></OverlayWaypoint>
         {/each}
+        {/key}
 
         </g>
       </svg>

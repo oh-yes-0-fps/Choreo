@@ -1,0 +1,60 @@
+.InputList {
+  display: grid;
+  column-gap: 1ch;
+  grid-template-columns: max-content auto max-content 24px;
+  width: auto;
+  height: auto;
+  color: white;
+  --text-color: white;
+  --disabled-color: gray;
+}
+.InputList.NoCheckbox {
+  grid-template-columns: max-content auto max-content 0;
+}
+
+.Title {
+  text-align: right;
+  min-width: max-content;
+}
+.Title.Disabled {
+  color: var(--disabled-color);
+}
+.Title.Tooltip {
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+.Number {
+  font-family: "Roboto Mono Variable";
+  width: auto;
+  height: 24px;
+  background-color: transparent;
+  border: none;
+  align-self: center;
+  flex-grow: 1;
+  color: inherit;
+  flex-shrink: 1;
+  min-width: 5.5ch;
+  border-bottom: solid 1px;
+  text-align: right;
+}
+.Number:disabled {
+  border-bottom: 1px solid var(--disabled-color);
+  color: transparent;
+  font-style: italic;
+}
+.Number:disabled.ShowWhenDisabled {
+  color: var(--disabled-color);
+}
+.Suffix {
+  min-width: max-content;
+  text-align: left;
+  flex-shrink: 0;
+}
+.Suffix.Disabled {
+  color: var(--disabled-color);
+}
+.Checkbox {
+  min-width: 10%;
+  margin-left: 0;
+}

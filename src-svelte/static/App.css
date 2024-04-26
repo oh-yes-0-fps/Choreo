@@ -81,4 +81,7 @@
     min-width: 0;
     height: calc(100vh);
   }
+  .divider {
+    margin-block: 4px;
+  }
   

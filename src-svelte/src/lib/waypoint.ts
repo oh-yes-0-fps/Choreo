@@ -1,116 +1,122 @@
 // place files you want to import through the `$lib` alias in this folder.
-import {invoke} from "@tauri-apps/api";
-import { listen, TauriEvent} from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api";
+import { listen, TauriEvent } from "@tauri-apps/api/event";
+import type { Event } from "@tauri-apps/api/event";
 import { writable, get as getStore, derived } from "svelte/store";
-import type {Writable, Subscriber} from "svelte/store";
+import type { Writable, Subscriber } from "svelte/store";
+import { NavbarItemData } from "./uistate.js";
 
-export let activePath = writable<number>(1);
-
-export function PathOrder(id: number) {
-
-    const internal = writable<Waypoint[]>([], (set: Subscriber<Waypoint[]>)=> {
-        let unlisten = listen("update_path_waypoints", (e: TauriEvent)=>{
-            if (e.payload.id == id) {
-                set(e.payload.order);
-            }
-        })
-    });
-    console.log("create path", id)
-    invoke("get_path_waypoints", {id}).then(w=>internal.set(w));
-   
-
-    const subscribe = internal.subscribe;
-    
-    const set = (v) => {
-        // invoke("update_waypoint", {
-        //     id,
-        //     update: {[key]:v}
-        // })
-        // internal.set(v);
-    };
-
-    const get = ()=>getStore(internal);
-    
-    //const update = (fn) => set(fn(_val));
-
-    // We create our store as a function so that it can be passed as a callback where the value to set is the first parameter
-    function store(val) {set(val)}
-    store.subscribe = subscribe;
-    store.set = set;
-    store.get = get;
-    //store.update = update;
-    // if (WaypointSubscribers[id] === undefined) {
-    //     WaypointSubscribers[id] = {};
-    // }
-    // WaypointSubscribers[id][key] = store;
-    return store;
+export function deletePathWaypoint(path_id: number, wpt_Id: number) {
+    invoke("delete_path_waypoint", {path_id, wpt_Id});
 }
 
+export let WaypointSubscribers: Record<number, WaypointStore> = {}
 
-let WaypointSubscribers : Record<number, Record<string, RemoteValue<any>>> = {}
+export type RemoteValue<T> = Writable<T> & {
+    get: () => T,
+    setNoPush: (arg: T) => void,
+    push: () => void
+}
 
-type RemoteValue<T> = Writable<T> & {get: ()=>T}
-export function WaypointValue<T>(id: number, key: string, init: T): RemoteValue<T> {
-    if (WaypointSubscribers[id]?.[key] !== undefined) {
-        return WaypointSubscribers[id][key];
+type UpdateWaypointPayload = {
+    id: number;
+    update: Partial<Waypoint>
+}
+
+function handleUpdate<K extends keyof WaypointNoID>(id: number, key: K, val: WaypointNoID[K]) {
+    const pt = WaypointSubscribers[id];
+    // this one is typed according to the key
+    if (pt === undefined) {
+        invoke("get_waypoint", { id }).then((pt: Waypoint) => {
+            WaypointSubscribers[id] = WaypointStore(pt)
+        })
+    } else {
+
+        let store = pt[key];
+        store.setNoPush(val);
+    }
+}
+// Set up a listener to update waypoint value stores, and create new ones if necessary
+listen<UpdateWaypointPayload>("update_waypoint", (e: Event<UpdateWaypointPayload>) => {
+    const id = e.payload.id;
+    for (let key in Object.keys(e.payload.update)) {
+        if (key != "id") {
+            let k = key as keyof WaypointNoID;
+            let val = e.payload.update[k] as WaypointNoID[typeof k];
+            handleUpdate(id, k, val);
+        }
+    }
+});
+type WaypointNoID = Omit<Waypoint, "id">
+export function WaypointValue<K extends keyof WaypointNoID>(id: number, key: K, init: WaypointNoID[K]): RemoteValue<WaypointNoID[K]> {
+    type T = WaypointNoID[K];
+    const preExisting = WaypointSubscribers[id]?.[key]
+    if (preExisting !== undefined) {
+        return preExisting;
     }
 
-    const internal = writable<T>(init, (set: Subscriber<T>)=> {
-        let unlisten = listen("update_waypoint", (e: TauriEvent)=>{
-            if (e.payload.id == id) {
-                set(e.payload.update[key]);
-            }
-        })
-    });
+    const internal = writable<T>(init);
     let _val = init;
 
 
-   
-
-    const subscribe = internal.subscribe;
-    
-    const set = (v:T) => {
+    const setNoPush = (v: T) => {
+        _val = v;
+        internal.set(v);
+    }
+    const push = () => {
         let payload = {
             id,
-            update: {[key]:v}
+            update: { [key]: _val }
         }
-        invoke("update_waypoint", payload).catch(e=>console.error(id, key, e))
-        internal.set(v);
+        invoke("update_waypoint", payload).catch(e => console.error(id, key, e))
+    }
+
+    const subscribe = internal.subscribe;
+
+    const set = (v: T) => {
+        setNoPush(v);
+        push();
     };
 
-    const get = ()=>getStore(internal);
-    
-    const update = (fn) => set(fn(_val));
+    const get = () => getStore(internal);
 
-    // We create our store as a function so that it can be passed as a callback where the value to set is the first parameter
-    function store(val) {set(val)}
-    store.subscribe = subscribe;
-    store.set = set;
-    store.get = get;
-    store.update = update;
-    if (WaypointSubscribers[id] === undefined) {
-        WaypointSubscribers[id] = {};
+    const update = (fn: (arg: T) => T) => set(fn(_val));
+
+    let store: RemoteValue<WaypointNoID[K]> = {
+        subscribe,
+        set,
+        get,
+        update,
+        setNoPush,
+        push
     }
-    WaypointSubscribers[id][key] = store;
+    // The relationship between the value of `key` and the generic type of the remote value
     return store;
 }
 
-export function WaypointStore(wpt:Waypoint): WaypointStore {
-        let id = wpt.id
-        return {
-            x: WaypointValue<number>(id, "x", wpt.x),
-            y: WaypointValue<number>(id, "y", wpt.y),
-            heading: WaypointValue<number>(id, "heading", wpt.heading),
-            is_initial_guess: WaypointValue<boolean>(id, "is_initial_guess", wpt.is_initial_guess),
-            translation_constrained: WaypointValue<boolean>(id, "translation_constrained", wpt.translation_constrained),
-            heading_constrained: WaypointValue<boolean>(id, "heading_constrained", wpt.heading_constrained),
-            control_interval_count: WaypointValue<number>(id, "control_interval_count", wpt.control_interval_count)
-        }
+export function WaypointStore(wpt: Waypoint): WaypointStore {
+    let id = wpt.id
+    if (WaypointSubscribers[id] !== undefined) {
+        return WaypointSubscribers[id];
+    }
+    console.log(wpt);
+    
+    let store = {
+        x: WaypointValue<"x">(id, "x", wpt.x),
+        y: WaypointValue<"y">(id, "y", wpt.y),
+        heading: WaypointValue<"heading">(id, "heading", wpt.heading),
+        is_initial_guess: WaypointValue<"is_initial_guess">(id, "is_initial_guess", wpt.is_initial_guess),
+        translation_constrained: WaypointValue<"translation_constrained">(id, "translation_constrained", wpt.translation_constrained),
+        heading_constrained: WaypointValue<"heading_constrained">(id, "heading_constrained", wpt.heading_constrained),
+        control_interval_count: WaypointValue<"control_interval_count">(id, "control_interval_count", wpt.control_interval_count)
+    }
+    WaypointSubscribers[id] = store;
+    return store;
 
 }
 export function waypointType(pt: WaypointStore) {
     return derived([pt.is_initial_guess, pt.heading_constrained, pt.translation_constrained],
-        ([guess, heading, trans])=>{
+        ([guess, heading, trans]) => {
             if (guess) return 3;
             if (!heading && !trans) return 2;
             if (trans && !heading) return 1;
@@ -118,38 +124,39 @@ export function waypointType(pt: WaypointStore) {
         })
 }
 
-export type WaypointStore = {
-    x: RemoteValue<number>,
-    y: RemoteValue<number>,
-    heading: RemoteValue<number>,
-    is_initial_guess: RemoteValue<boolean>,
-    translation_constrained: RemoteValue<boolean>
-    heading_constrained: RemoteValue<boolean>
-    control_interval_count: RemoteValue<number>
-
-}
+export type WaypointStore = { [K in keyof WaypointNoID]: RemoteValue<WaypointNoID[K]> }
 export type Waypoint = {
     id: number,
     x: number,
     y: number,
     heading: number,
     is_initial_guess: boolean,
-    translation_constrained:boolean,
-    heading_constrained:boolean,
+    translation_constrained: boolean,
+    heading_constrained: boolean,
     control_interval_count: number
 }
 
+export function type(point: Waypoint) {
+    if (point.is_initial_guess) { return 3 }
+    if (!point.heading_constrained && !point.translation_constrained) { return 2; }
+    if (!point.heading_constrained) { return 1; }
+    return 0;
+}
+export function typeName(point: Waypoint) {
+    return NavbarItemData[type(point)].name;
+}
+
 export async function add_path_waypoint(path_id: number, update: Partial<Waypoint>) {
-    let newWpt = await invoke("add_path_waypoint", {id: path_id, update});
+    let newWpt = await invoke("add_path_waypoint", { id: path_id, update });
     // start the observers instead of waiting for more queries
     WaypointStore(newWpt);
     return newWpt.id;
 }
 
-export async function get_path_waypoints(path_id:number) {
-    return await invoke("get_path_waypoints", {id: path_id});
+export async function get_path_waypoints(path_id: number) {
+    return await invoke("get_path_waypoints", { id: path_id });
 }
 export async function update_waypoint(id: number, update: Partial<Waypoint>) {
-    invoke("update_waypoint", {id, update});
+    invoke("update_waypoint", { id, update });
 }
 

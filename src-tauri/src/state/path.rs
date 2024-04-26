@@ -187,7 +187,7 @@ pub async fn generate_trajectory(
     //     path_builder.sgmt_polygon_obstacle(0, wpt_cnt - 1, o.x, o.y, o.radius);
     // }
     path_builder.set_drivetrain(&config.as_drivetrain());
-    path_builder.generate(true)
+    path_builder.generate(true, path_id.clone())
 }
 
 pub async fn create_path_tables(
@@ -204,6 +204,15 @@ pub async fn create_path_tables(
                 CONSTRAINT WPT_FK
                     FOREIGN KEY (wpt)
                     REFERENCES waypoints(id)
+            )
+        ",
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "Create table paths (
+                path_id INT primary key,
+                name VARCHAR(100)
             )
         ",
     )
@@ -284,6 +293,15 @@ pub async fn add_path_waypoint_impl(
     Ok(())
 }
 
+#[tauri::command]
+pub async fn delete_path_waypoint(
+    handle: tauri::AppHandle, path_id: i64, wpt_id: i64
+)  -> Result<(), String> {
+    let pool = handle.state::<Pool<Sqlite>>();
+    delete_path_waypoint_impl(&pool, &path_id, &wpt_id).await.map_err(sqlx_stringify)?;
+    broadcast_path_update(&handle, path_id).await;
+    Ok(())
+}
 pub async fn delete_path_waypoint_impl(
     pool: &Pool<Sqlite>,
     path_id: &i64,

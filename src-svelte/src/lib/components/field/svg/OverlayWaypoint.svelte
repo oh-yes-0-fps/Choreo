@@ -1,18 +1,16 @@
 <script lang="ts">
 
-import {WaypointStore} from "$lib/index.ts"
-import type {Waypoint} from "$lib/index.ts"
-    import { waypointType } from "$lib/waypoint.js";
+    import { WaypointSubscribers, waypointType } from "$lib/waypoint.js";
 import * as d3 from "d3";
     import { onMount } from "svelte";
     import BumperBox from "./BumperBox.svelte";
     import { readable, type Readable } from "svelte/store";
 
 
-export let point: Waypoint;
+export let point: number;
 export let index: number;
 
-let wpt = WaypointStore(point);
+let wpt = WaypointSubscribers[point]!;
 let {x, y, heading} = wpt;
 type Coordinates = {
   x: number;

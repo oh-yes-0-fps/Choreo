@@ -310,7 +310,7 @@ pub async fn delete_path_waypoint_impl(
     let wpt_opt = get_waypoint_impl(pool, wpt_id).await?;
     if wpt_opt.is_none() {return Ok(())};
     let wpt = wpt_opt.unwrap();
-    let (prev, next) = sqlx::query_as::<Sqlite, (i64, i64)>(
+    let (prev, next) = sqlx::query_as::<Sqlite, (Option<i64>, Option<i64>)>(
         "SELECT prev, next FROM path_waypoints
         WHERE path==? AND wpt==?",
     )
@@ -318,6 +318,7 @@ pub async fn delete_path_waypoint_impl(
     .bind(wpt_id)
     .fetch_one(pool)
     .await?;
+    println!("{:?} {:?}", prev, next);
     // TODO begin transaction
     // update prev's next
     let result: Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> = {

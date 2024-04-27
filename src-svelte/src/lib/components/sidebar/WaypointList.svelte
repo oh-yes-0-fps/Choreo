@@ -1,10 +1,9 @@
 <script lang="ts">
-    import { type, deletePathWaypoint, type Waypoint } from "$lib/waypoint.js";
+    import { type, deletePathWaypoint, type Waypoint, getWaypoint} from "$lib/waypoint.js";
 import styles from "./Sidebar.module.css";
 import SidebarWaypoint from "./SidebarWaypoint.svelte"
-import {activePath} from "$lib/path.js"
+export let pathId;
 export let pathOrderStore;
-let active = $activePath;
 $: waypoints = $pathOrderStore;
 console.log("wpts", waypoints);
 const getListStyle = (isDraggingOver: boolean) => ({
@@ -44,14 +43,17 @@ const onDragEnd = (result: any) => {
 
 </script>
 <div>
-    {#each waypoints as point, i}
+    {#each waypoints as id, i}
+    {@const point = getWaypoint(id)}
+    {#if point !== undefined}
     <SidebarWaypoint
     waypoint={point}
     index={i}
     issue={getIssue(point, i)}
     pathLength={waypoints.length}
-    handleDelete={(id)=>deletePathWaypoint(active, id)}
+    handleDelete={(id)=>deletePathWaypoint(pathId, id)}
   ></SidebarWaypoint>
+  {/if}
   {/each}
 </div>
 

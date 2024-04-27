@@ -4,8 +4,9 @@
   import RedoIcon from "virtual:icons/mdi/redo";
   import WaypointList from "./WaypointList.svelte"
   import PathSelector from "./PathSelector.svelte"
-  import {PathOrder, activePath, activePathOrder} from "$lib/path.js";
-  $: active = PathOrder($activePath);
+  import {PathOrder} from "$lib/path.js";
+  export let pathId;
+  $: active = PathOrder(pathId);
   $: waypoints = $active;
   $: console.log("sidebar", waypoints);
   let constraints:any[] = [];
@@ -139,9 +140,9 @@
     > 
       <span class="inline">
         <div class="tooltip tooltip-bottom" data-tip="Main Menu">
-          <button class="btn btn-ghost btn-square btn-md">
+          <a href="/" class="btn btn-ghost btn-square btn-md">
             <MenuIcon/>
-          </button>
+          </a>
         </div>
         
           <!-- <IconButton
@@ -229,7 +230,7 @@
     <div
       class="Sidebar max-h-300 min-h-50"
     >
-      <PathSelector></PathSelector>
+      <PathSelector pathId={pathId}></PathSelector>
     </div>
     <div class="divider SidebarHr"></div>
     <div class="SidebarHeading">FEATURES</div>
@@ -237,7 +238,7 @@
     <div class="Sidebar">
       <div class="divider divider-start SidebarHr">WAYPOINTS</div>
 
-      <WaypointList pathOrderStore={active}></WaypointList>
+      <WaypointList pathOrderStore={active} pathId={pathId}></WaypointList>
       {#if waypoints.length == 0}
 
       <div class={"SidebarItem Noninteractible"}>

@@ -111,6 +111,7 @@ export const WaypointData: {
     });
     return x;
   })();
+  console.log(NavbarItemData);
   
   const NavbarItemSections = [waypointNavbarCount]//, constraintNavbarCount];
 //   NavbarItemSections.push(obstacleNavbarCount);

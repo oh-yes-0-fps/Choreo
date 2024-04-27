@@ -3,6 +3,7 @@
 
 import styles from "./Field.module.css";
 import FieldOverlayRoot from "./svg/FieldOverlayRoot.svelte";
+export let pathId;
 // import IconButton from "@mui/material/IconButton";
 // import ShapeLineIcon from "@mui/icons-material/ShapeLine";
 // import { CircularProgress, Tooltip } from "@mui/material";
@@ -20,7 +21,7 @@ import FieldOverlayRoot from "./svg/FieldOverlayRoot.svelte";
 // import { IEventMarkerStore } from "../../document/EventMarkerStore";
 </script>
       <div class={styles.Container}>
-        <FieldOverlayRoot></FieldOverlayRoot>
+        <FieldOverlayRoot pathId={pathId}></FieldOverlayRoot>
         <!-- {selectedSidebar !== undefined &&
           "heading" in selectedSidebar &&
           activePath.waypoints.find(

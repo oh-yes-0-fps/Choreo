@@ -6,7 +6,7 @@
 import * as d3 from "d3";
 import { onMount } from 'svelte';
 import {get} from 'svelte/store';
-import {activePath, add_path_waypoint, get_path_waypoints, PathOrder, update_waypoint} from '$lib/index.ts';
+import { add_path_waypoint, get_path_waypoints, PathOrder, update_waypoint} from '$lib/index.ts';
 import { fieldScalingFactor } from "$lib/uistate";
 // import FieldGrid from "./FieldGrid";
 // import FieldPathLines from "./FieldPathLines";
@@ -24,8 +24,8 @@ import FieldImage24 from "./fields/FieldImage24.svelte";
 // import FieldSamples from "./FieldSamples";
 // import FieldGeneratedWaypoints from "./FieldGeneratedWaypoints";
 // import FieldEventMarkerAddLayer from "./FieldEventMarkerAddLayer";
-
-$: waypoints = PathOrder($activePath);
+export let pathId;
+$: waypoints = PathOrder(pathId);
 $: console.log("field wpts", $waypoints);
 let xPan = 0;
 let yPan = 0;
@@ -141,7 +141,7 @@ let zoomed = (e: any) => {
         x: e.clientX,
         y: e.clientY
       });
-      add_path_waypoint(get(activePath), {x: coords.x, y: coords.y});
+      add_path_waypoint(pathId, {x: coords.x, y: coords.y, translation_constrained: true, heading_constrained: false});
       
     //   this.context.history.startGroup(() => {
     //     const newPoint =

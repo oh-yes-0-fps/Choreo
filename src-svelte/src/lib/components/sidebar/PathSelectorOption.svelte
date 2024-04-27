@@ -1,21 +1,19 @@
 <script lang="ts">
 // @ts-nocheck
 
-
-    import { activePath } from "$lib/path.js";
     import {derived} from "svelte/store";
     import { dialog } from "@tauri-apps/api";
     import Input from "../input/Input.svelte";
     import InputList from "../input/InputList.svelte";
     import styles from "./Sidebar.module.css";
     export let id: number;
+    export let selected;
     let renaming = false;
     let renameError = false;
     const originalName= `Path ${id}`;
     let name= originalName;
     let settingsOpen = false;
 
-    $: selected = ($activePath === id);
   let nameInputRef: HTMLInputElement;
 
   const startRename = () =>{
@@ -60,14 +58,9 @@
   let generating = false;
   let stale = false;
 </script>
-      <span
+      <a href={`/paths/${id}`}
         class={styles.SidebarItem + " " + (selected ? styles.Selected : "")}
         style="borderWidth: 0; border-left-width: 4; height: auto;"
-        on:click={() => {
-          //toast.dismiss(); // remove toasts that showed from last path, which is irrelevant for the new path
-
-          activePath.set(id);
-        }}
       >
       {#if generating}
         
@@ -187,4 +180,4 @@
               </InputList>
             </span>
             {/if}
-      </span>
+          </a>

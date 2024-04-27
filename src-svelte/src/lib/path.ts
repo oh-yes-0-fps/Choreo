@@ -5,10 +5,6 @@ import { TauriEvent, listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api";
 
 
-export let activePath = writable<number>(1);
-
-export let activePathOrder = derived([activePath], ([active]) => { return PathOrder(active) });
-
 let Paths: Record<number, RemoteValue<number[]>> = {};
 
 export function PathOrder(id: number): RemoteValue<number[]> {

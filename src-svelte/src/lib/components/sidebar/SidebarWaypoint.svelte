@@ -8,6 +8,7 @@
   export let pathLength: number;
   export let issue: string | undefined;
   export let handleDelete: (id: number)=>void;
+  $: console.log(type(waypoint), waypoint);
   let selected = false;
   function getIconColor (pathLength: number) {
     if (selected) {

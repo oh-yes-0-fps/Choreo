@@ -6,8 +6,8 @@ import { writable, get as getStore, derived } from "svelte/store";
 import type { Writable, Subscriber } from "svelte/store";
 import { NavbarItemData } from "./uistate.js";
 
-export function deletePathWaypoint(path_id: number, wpt_Id: number) {
-    invoke("delete_path_waypoint", {path_id, wpt_Id});
+export function deletePathWaypoint(pathId: number, wptId: number) {
+    invoke("delete_path_waypoint", {pathId, wptId});
 }
 
 export let WaypointSubscribers: Record<number, WaypointStore> = {}
@@ -78,7 +78,7 @@ export function WaypointValue<K extends keyof WaypointNoID>(id: number, key: K, 
         push();
     };
 
-    const get = () => getStore(internal);
+    const get = () => _val;
 
     const update = (fn: (arg: T) => T) => set(fn(_val));
 
@@ -136,9 +136,25 @@ export type Waypoint = {
     control_interval_count: number
 }
 
+export function getWaypoint(id: number) : Waypoint | undefined {
+    let store = WaypointSubscribers[id];
+    if (store === undefined) {return undefined;}
+    return {
+        id,
+        x: store.x.get(),
+        y: store.y.get(),
+        heading: store.heading.get(),
+        is_initial_guess: store.is_initial_guess.get(),
+        translation_constrained: store.translation_constrained.get(),
+        heading_constrained: store.heading_constrained.get(),
+        control_interval_count: store.control_interval_count.get()
+    }
+}
+
+
 export function type(point: Waypoint) {
     if (point.is_initial_guess) { return 3 }
-    if (!point.heading_constrained && !point.translation_constrained) { return 2; }
+    if ((!point.heading_constrained) && (!point.translation_constrained)) { return 2; }
     if (!point.heading_constrained) { return 1; }
     return 0;
 }
